@@ -1,0 +1,12 @@
+nbproject
+sAnnealing_plots/*
+benches/test/queue-test/tinystm/.idea/*
+benches_CONFL_MATRIX/bench/yada/inputs/*.gz
+benches_CONFL_MATRIX/bench/labyrinth/inputs/*.txt
+benches_CONFL_MATRIX/bench/kmeans/inputs/*.gz
+sAnnealing/TX_graph_examples/*.in
+benches/locking-gpu-kmeans/cuda-kmeans/datasets/*.txt
+benches/locking-gpu-kmeans/cuda-kmeans/lib/*
+benches/locking-gpu-kmeans/PMAM-CR-submitted.pdf
+deps/tinystm/doc/*
+
