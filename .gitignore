@@ -9,4 +9,5 @@ benches/locking-gpu-kmeans/cuda-kmeans/datasets/*.txt
 benches/locking-gpu-kmeans/cuda-kmeans/lib/*
 benches/locking-gpu-kmeans/PMAM-CR-submitted.pdf
 deps/tinystm/doc/*
+.vscode/*
 
