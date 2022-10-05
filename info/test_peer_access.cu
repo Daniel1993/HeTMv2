@@ -4,16 +4,9 @@
 #include <numa.h>
 #include <cassert>
 
+using namespace std;
+
 #define NB_DEVICES 4
-#define FOR_EACH_DEVI(...) do { for (size_t devi = 0; devi < NB_DEVICES; devi++) { \
-  cudaSetDevice(devi); \
-  __VA_ARGS__; \
-} } while(false)
-#define FOR_EACH_DEVI_PAIR(...) do { for (size_t dev1 = 0; dev1 < NB_DEVICES; dev1++) { \
-  cudaSetDevice(dev1); \
-  for (size_t dev2 = 0; dev2 < NB_DEVICES; dev2++) { \
-    if (dev1 != dev2) { __VA_ARGS__; } \
-} } } while(false)
 #define CUDA_CHECK_ERROR(func, msg) ({ \
 	cudaError_t cudaError; \
 	if (cudaSuccess != (cudaError = func)) { \
@@ -23,6 +16,15 @@
 	} \
   cudaError; \
 })
+#define FOR_EACH_DEVI(...) do { for (size_t devi = 0; devi < NB_DEVICES; devi++) { \
+  CUDA_CHECK_ERROR(cudaSetDevice(devi), ""); \
+  __VA_ARGS__; \
+} } while(false)
+#define FOR_EACH_DEVI_PAIR(...) do { for (size_t dev1 = 0; dev1 < NB_DEVICES; dev1++) { \
+  CUDA_CHECK_ERROR(cudaSetDevice(dev1), ""); \
+  for (size_t dev2 = 0; dev2 < NB_DEVICES; dev2++) { \
+    if (dev1 != dev2) { __VA_ARGS__; } \
+} } } while(false)
 #define CUDA_UNIF_MEM_ALLOC(ptr, size) \
 	CUDA_CHECK_ERROR(cudaMallocManaged((void**)&(ptr), size), \
 		"[cudaMallocManaged]: failed for " #ptr);
@@ -34,12 +36,12 @@
 		"[cudaMallocHost]: failed for " #ptr);
 // In different GPUs
 #define CUDA_CPY_PtP_ASYNC(dst, dev1, src, dev2, size, stream) \
-	CUDA_CHECK_ERROR(cudaMemcpyPeerAsync((void*)dst, (int)dev1, (void*)src, (int)dev2, size, \
+	CUDA_CHECK_ERROR(cudaMemcpyPeerAsync((void*)(dst), (int)(dev1), (void*)(src), (int)(dev2), size, \
 	(cudaStream_t)stream), "[cudaMemcpyPeer]: failed for " \
 		#dev2 " --> " #dev1)
 // In different GPUs
 #define CUDA_CPY_PtP(dst, dev1, src, dev2, size) \
-	CUDA_CHECK_ERROR(cudaMemcpyPeer((void*)dst, (int)dev1, (void*)src, (int)dev2, \
+	CUDA_CHECK_ERROR(cudaMemcpyPeer((void*)(dst), (int)(dev1), (void*)(src), (int)(dev2), \
 	size), "[cudaMemcpyPeer]: failed for " \
 		#dev2 " --> " #dev1)
 #define CUDA_EVENT_RECORD(ev, stream)        if (ev) { CUDA_CHECK_ERROR(cudaEventRecord(ev, stream), ""); }
@@ -122,26 +124,27 @@ int main()
   initGPUPeerCpy();
 
   FOR_EACH_DEVI(
-    cudaStreamCreate(&strm[devi]);
-    cudaEventCreate(&ev1[devi]);
-    cudaEventCreate(&ev2[devi]);
-    CUDA_DEV_ALLOC(&devSrcMem[devi], SIZE_MEM);
-    CUDA_DEV_ALLOC(&devDstMem[devi], SIZE_MEM*NB_DEVICES);
+    CUDA_CHECK_ERROR(cudaStreamCreate(&strm[devi]), "");
+    CUDA_CHECK_ERROR(cudaEventCreate(&ev1[devi]), "");
+    CUDA_CHECK_ERROR(cudaEventCreate(&ev2[devi]), "");
+    CUDA_DEV_ALLOC(devSrcMem[devi], SIZE_MEM);
+    CUDA_DEV_ALLOC(devDstMem[devi], SIZE_MEM*NB_DEVICES);
   );
   
   FOR_EACH_DEVI_PAIR(
-    CUDA_EVENT_RECORD(ev1, strm[dev1]);
+    CUDA_EVENT_RECORD(ev1[dev1], strm[dev1]);
     CUDA_CPY_PtP_ASYNC(devDstMem[dev1]+dev2*SIZE_MEM, dev1, devSrcMem[dev2], dev2, SIZE_MEM, strm[dev1]);
-    CUDA_EVENT_RECORD(ev2, strm[dev1]);
-    CUDA_EVENT_SYNCHRONIZE(ev1);
-    CUDA_EVENT_SYNCHRONIZE(ev2);
-    CUDA_EVENT_ELAPSED_TIME(&reg, ev1, ev2);
-    printf("elapsed time = %f\n", reg);
+    CUDA_EVENT_RECORD(ev2[dev1], strm[dev1]);
+    CUDA_EVENT_SYNCHRONIZE(ev1[dev1]);
+    CUDA_EVENT_SYNCHRONIZE(ev2[dev1]);
+    CUDA_EVENT_ELAPSED_TIME(&reg, ev1[dev1], ev2[dev1]);
+    printf("elapsed time = %fms\n", reg);
   );
   
   FOR_EACH_DEVI(
     cudaStreamDestroy(strm[devi]);
-    cudaFree(devMem[devi]);
+    cudaFree(devSrcMem[devi]);
+    cudaFree(devDstMem[devi]);
   );
   destroyGPUPeerCpy();
   return EXIT_SUCCESS;

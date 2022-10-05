@@ -80,6 +80,14 @@ void initGPUPeerCpy()
       }
     }
   }
+  // TODO: #ifdef taz-gpu machine (4x A100) then disable some links
+  CUDA_CHECK_ERROR(cudaSetDevice(0), "");
+  CUDA_CHECK_ERROR(cudaDeviceDisablePeerAccess(2), "");
+  CUDA_CHECK_ERROR(cudaDeviceDisablePeerAccess(3), "");
+  CUDA_CHECK_ERROR(cudaSetDevice(2), "");
+  CUDA_CHECK_ERROR(cudaDeviceDisablePeerAccess(0), "");
+  CUDA_CHECK_ERROR(cudaSetDevice(3), "");
+  CUDA_CHECK_ERROR(cudaDeviceDisablePeerAccess(0), "");
 }
 
 void destroyGPUPeerCpy()
