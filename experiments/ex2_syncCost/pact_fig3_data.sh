@@ -5,21 +5,21 @@ mkdir -p $DATA_FOLDER
 
 cd ../../benches/bank
 
-SAMPLES=3
-DURATION_ORG=12000
+SAMPLES=5
+DURATION_ORG=20000
 DURATION_GPU=8000
 #./makeTM.sh
 DURATION=$DURATION_ORG
 
 rm -f Bank_LOG.csv
 
-L_DATASET=100000000
+L_DATASET=150000000
 S_DATASET=15000000
 # CPU_BACKOFF=250
 
 CPU_THREADS=16
 GPU_THREADS=128
-GPU_BLOCKS=20
+GPU_BLOCKS=30
 TRANSACTION_SIZE=4
 CPU_BACKOFF=0
 # GPU_BACKOFF=800000
@@ -45,7 +45,7 @@ function compile_fn {
 		CPU_PART=0.55 \
 		P_INTERSECT=$P_INTERSECT \
 		PROFILE=1 \
-		BMAP_GRAN_BITS=13 \
+		BMAP_GRAN_BITS=14 \
 		DISABLE_NON_BLOCKING=1 \
 		OVERLAP_CPY_BACK=0 \
 		LOG_SIZE=4096 \
@@ -108,55 +108,52 @@ DATASET=$L_DATASET
 
 ###########################################################################
 ############### GPU-only
-# make clean ; make CMP_TYPE=COMPRESSED DISABLE_RS=1 USE_TSX_IMPL=1 CPUEn=0 PR_MAX_RWSET_SIZE=20 \
-# 	BANK_PART=9 BANK_INTRA_CONFL=0.0 GPU_PART=0.55 CPU_PART=0.55 P_INTERSECT=0.00 PROFILE=1 -j 14 \
-# 	BMAP_GRAN_BITS=13 >/dev/null
-# ./compile.sh opt                     \
-# 	CMP_TYPE=0                         \
-# 	HETM_CPU_EN=0                      \
-# 	HETM_GPU_EN=1                      \
-# 	LOG_TYPE=BMAP                      \
-# 	USE_TSX_IMPL=0                     \
-# 	PR_MAX_RWSET_SIZE=200              \
-# 	BANK_PART=9                        \
-# 	GPU_PART=0.55                      \
-# 	CPU_PART=0.55                      \
-# 	P_INTERSECT=0.00                   \
-# 	PROFILE=1                          \
-# 	BMAP_GRAN_BITS=13 \
-# 	HETM_NB_DEVICES=1
-# #
-# for PROB_WRITE in 10 100
-# do
-# 	doRunLargeDTST GPUonly_rand_sep_DISABLED_large
-# done
+./compile.sh opt                     \
+	CMP_TYPE=0                         \
+	HETM_CPU_EN=0                      \
+	HETM_GPU_EN=1                      \
+	LOG_TYPE=BMAP                      \
+	USE_TSX_IMPL=0                     \
+	PR_MAX_RWSET_SIZE=200              \
+	BANK_PART=9                        \
+	GPU_PART=0.55                      \
+	CPU_PART=0.55                      \
+	P_INTERSECT=0.00                   \
+	PROFILE=1                          \
+	BMAP_GRAN_BITS=14 \
+	HETM_NB_DEVICES=1
+#
+for PROB_WRITE in 10 100
+do
+	doRunLargeDTST GPUonly_rand_sep_DISABLED_large
+done
 
 # ############# CPU-only
-# ./compile.sh opt                     \
-# 	CMP_TYPE=0                         \
-# 	HETM_CPU_EN=1                      \
-# 	HETM_GPU_EN=0                      \
-# 	LOG_TYPE=BMAP                      \
-# 	USE_TSX_IMPL=0                     \
-# 	PR_MAX_RWSET_SIZE=200              \
-# 	BANK_PART=9                        \
-# 	GPU_PART=0.55                      \
-# 	CPU_PART=0.55                      \
-# 	P_INTERSECT=0.00                   \
-# 	PROFILE=1                          \
-# 	BMAP_GRAN_BITS=13 \
-# 	HETM_NB_DEVICES=1
-# #
-# for PROB_WRITE in 10 100
-# do
-# 	doRunLargeDTST_CPU CPUonly_rand_sep_DISABLED_large
-# done
+./compile.sh opt                     \
+	CMP_TYPE=0                         \
+	HETM_CPU_EN=1                      \
+	HETM_GPU_EN=0                      \
+	LOG_TYPE=BMAP                      \
+	USE_TSX_IMPL=0                     \
+	PR_MAX_RWSET_SIZE=200              \
+	BANK_PART=9                        \
+	GPU_PART=0.55                      \
+	CPU_PART=0.55                      \
+	P_INTERSECT=0.00                   \
+	PROFILE=1                          \
+	BMAP_GRAN_BITS=14                  \
+	HETM_NB_DEVICES=1
+#
+for PROB_WRITE in 10 100
+do
+	doRunLargeDTST_CPU CPUonly_rand_sep_DISABLED_large
+done
 
-# compile_fn 0 0.0 1
-# for PROB_WRITE in 10 100
-# do
-# 	doRunLargeDTST BMAP_rand_sep_1GPU
-# done
+compile_fn 0 0.0 1
+for PROB_WRITE in 10 100
+do
+	doRunLargeDTST BMAP_rand_sep_1GPU
+done
 
 compile_fn 0 0.0 2
 for PROB_WRITE in 10 100
@@ -176,24 +173,23 @@ do
 	doRunLargeDTST BMAP_rand_sep_4GPU
 done
 
-compile_fn 0 0.0 8
-for PROB_WRITE in 10 100
-do
-	doRunLargeDTST BMAP_rand_sep_8GPU
-done
+# compile_fn 0 0.0 8
+# for PROB_WRITE in 10 100
+# do
+# 	doRunLargeDTST BMAP_rand_sep_8GPU
+# done
 
-compile_fn 0 0.0 12
-for PROB_WRITE in 10 100
-do
-	doRunLargeDTST BMAP_rand_sep_12GPU
-done
+# compile_fn 0 0.0 12
+# for PROB_WRITE in 10 100
+# do
+# 	doRunLargeDTST BMAP_rand_sep_12GPU
+# done
 
-compile_fn 0 0.0 16
-for PROB_WRITE in 10 100
-do
-	doRunLargeDTST BMAP_rand_sep_16GPU
-done
-
+# compile_fn 0 0.0 16
+# for PROB_WRITE in 10 100
+# do
+# 	doRunLargeDTST BMAP_rand_sep_16GPU
+# done
 
 # mkdir -p $DATA_FOLDER/array_batch_duration_TSX
 # mv $DATA_FOLDER/*_s* $DATA_FOLDER/array_batch_duration_TSX/

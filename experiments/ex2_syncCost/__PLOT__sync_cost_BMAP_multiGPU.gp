@@ -11,17 +11,17 @@ set fit results
 
 if (ARG2[strlen(ARG2)-2:] eq 'tex') {
     set terminal cairolatex size 2.80,2.0
-    set output sprintf("%s", ARG2)
+    set output sprintf("%s_%s.tex", ARG2[:strlen(ARG2)-4], ARG3)
 } else { if (ARG2[strlen(ARG2)-2:] eq 'pdf') {
     set terminal pdf size 5,4
-    set output sprintf("%s", ARG2)
+    set output sprintf("%s_%s.pdf", ARG2[:strlen(ARG2)-4], ARG3)
 } else { if (ARG2[strlen(ARG2)-2:] eq 'jpg') {
     set terminal jpeg enhanced large size 800,560
-    set output sprintf("%s", ARG2)
+    set output sprintf("%s_%s.jpg", ARG2[:strlen(ARG2)-4], ARG3)
     # set xtics rotate by 20
 } else {
     set terminal pngcairo noenhanced size 800,560
-    set output sprintf("%s", ARG2)
+    set output sprintf("%s_%s.png", ARG2[:strlen(ARG2)-4], ARG3)
 }}}
 
 set ylabel "Throughput" font ",14" tc lt 0 #offset 2.7,-0.0
@@ -29,16 +29,20 @@ set xlabel "Batch duration (ms)" font ",14" tc lt 0 #offset 2.7,-0.0
 set key left
 
 plot \
-     sprintf("%s/BMAP_rand_sep_1GPU_w10.avg", ARG1)              using 45:18 notitle with linespoints linecolor rgbcolor "#FF0000" pt 1 lw 2 ps 0.8, \
-     sprintf("%s/BMAP_rand_sep_2GPU_w10.avg", ARG1)              using 45:18 notitle with linespoints linecolor rgbcolor "#BA009A" pt 2 lw 2 ps 0.8, \
-     sprintf("%s/BMAP_rand_sep_3GPU_w10.avg", ARG1)              using 45:18 notitle with linespoints linecolor rgbcolor "#55FF00" pt 3 lw 2 ps 0.8, \
-     sprintf("%s/BMAP_rand_sep_4GPU_w10.avg", ARG1)              using 45:18 notitle with linespoints linecolor rgbcolor "#1198DA" pt 4 lw 2 ps 0.8, \
-     sprintf("%s/CPUonly_rand_sep_DISABLED_large_w10.avg", ARG1) using 45:18 notitle with linespoints linecolor rgbcolor "#13FF03" dashtype '-' pt 6 lw 1 ps 0.8, \
-     sprintf("%s/GPUonly_rand_sep_DISABLED_large_w10.avg", ARG1) using 45:18 notitle with linespoints linecolor rgbcolor "#13C3C3" dashtype '-' pt 4 lw 1 ps 0.8, \
+     sprintf("%s/BMAP_rand_sep_1GPU_w%s.avg", ARG1, ARG3)              using 45:18 notitle with linespoints linecolor rgbcolor "#FF0000" pt 1 lw 2 ps 0.8, \
+     sprintf("%s/BMAP_rand_sep_2GPU_w%s.avg", ARG1, ARG3)              using 45:18 notitle with linespoints linecolor rgbcolor "#BA009A" pt 2 lw 2 ps 0.8, \
+     sprintf("%s/BMAP_rand_sep_3GPU_w%s.avg", ARG1, ARG3)              using 45:18 notitle with linespoints linecolor rgbcolor "#55FF00" pt 3 lw 2 ps 0.8, \
+     sprintf("%s/BMAP_rand_sep_4GPU_w%s.avg", ARG1, ARG3)              using 45:18 notitle with linespoints linecolor rgbcolor "#1198DA" pt 4 lw 2 ps 0.8, \
+     sprintf("%s/BMAP_rand_sep_8GPU_w%s.avg", ARG1, ARG3)              using 45:18 notitle with linespoints linecolor rgbcolor "#333333" dashtype '.' pt 5 lw 2 ps 0.8, \
+     sprintf("%s/BMAP_rand_sep_12GPU_w%s.avg", ARG1, ARG3)             using 45:18 notitle with linespoints linecolor rgbcolor "#999999" dashtype '.' pt 7 lw 2 ps 0.8, \
+     sprintf("%s/CPUonly_rand_sep_DISABLED_large_w%s.avg", ARG1, ARG3) using 45:18 notitle with linespoints linecolor rgbcolor "#13FF03" dashtype '-' pt 6 lw 1 ps 0.8, \
+     sprintf("%s/GPUonly_rand_sep_DISABLED_large_w%s.avg", ARG1, ARG3) using 45:18 notitle with linespoints linecolor rgbcolor "#13C3C3" dashtype '-' pt 4 lw 1 ps 0.8, \
      1/0 with linespoints linecolor rgbcolor "#FF0000"  pt 1 lw 3 ps 1 ti "SHeTM 1GPU", \
      1/0 with linespoints linecolor rgbcolor "#BA009A"  pt 2 lw 3 ps 1 ti "SHeTM 2GPU", \
      1/0 with linespoints linecolor rgbcolor "#55FF00"  pt 3 lw 3 ps 1 ti "SHeTM 3GPU", \
      1/0 with linespoints linecolor rgbcolor "#1198DA"  pt 4 lw 3 ps 1 ti "SHeTM 4GPU", \
+     1/0 with linespoints linecolor rgbcolor "#333333" dashtype '.' pt 5 lw 3 ps 1 ti "*SHeTM 8GPU*", \
+     1/0 with linespoints linecolor rgbcolor "#999999" dashtype '.' pt 7 lw 3 ps 1 ti "*SHeTM 12GPU*", \
      1/0 with linespoints linecolor rgbcolor "#13FF03"  dashtype '-' pt 6 lw 3 ps 1 ti "CPU only", \
      1/0 with linespoints linecolor rgbcolor "#13C3C3"  dashtype '-' pt 4 lw 3 ps 1 ti "GPU only" \
      #sprintf("%s/SHeTM_basic_w100.avg", ARG1) using 37:18 notitle with linespoints linecolor rgbcolor "#13DD56" pt 3 lw 1 ps 0.8, \
