@@ -102,6 +102,7 @@ memman_apply_BMAP_PtP(int devDst, int devSrc, void* strm, long size, char *bytes
     start_fn
 
     // copy all changes to remote
+    // printf(" --9-- PtP ASYNC with STRM!!!\n");
     CUDA_CPY_PtP_ASYNC(
         dev_buffer[devDst], aDevDst,
         devPtrSrc, aDevSrc,

@@ -1,11 +1,11 @@
 #!/bin/bash
 
-TARGET_FOLDER=/Users/daniel/Documents/Data/HeTM_2022_July_extention/2GPUS/inter_conf
-OLDER_FOLDER=/Users/daniel/Documents/Data/HeTM_2022_July_extention/2GPUS/2nd_plot_inter_conf_old
+TARGET_FOLDER=/Users/daniel/Documents/Data/HeTM_2022_July_extention/4GPUS/inter_conf
+OLDER_FOLDER=/Users/daniel/Documents/Data/HeTM_2022_July_extention/4GPUS/2nd_plot_inter_conf_old
 REMOTE_FOLDER=/home/dcastro/projs/HeTM_V1/experiments/ex2_syncCost/data
 source ../aux_files/vars.sh
 
-cp $OLDER_FOLDER/SHeTM_* $TARGET_FOLDER/
+# cp $OLDER_FOLDER/SHeTM_* $TARGET_FOLDER/
 
 ### Scripts
 SCRIPTS=$CURR_FOLDER/../scripts
@@ -28,6 +28,6 @@ ls
 cp $LAST_FOLDER_WITH_DATA/*.avg 0proc$EXPERIMENT_FOLDER
 #cp $EXPERIMENT_FOLDER/NORM_* $PROC_FOLDER
 mkdir -p trash
-mv *.tsv *.avg trash
+mv $LAST_FOLDER_WITH_DATA/*{.tsv,.avg} trash
 
 $CURR_FOLDER/pact_fig5_plot_loc_mac.sh 0proc$EXPERIMENT_FOLDER pact_fig5.png

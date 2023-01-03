@@ -1,25 +1,25 @@
 #!/bin/bash
 
-SAMPLES=5	
+SAMPLES=3	
 DURATION=20000
 #./makeTM.sh
 # DURATION_ORG=12000
 # DURATION_GPU=6000
 # DURATION=$DURATION_ORG
 
-DATA_FOLDER=$(pwd)/data
+DATA_FOLDER=$(pwd)/data/inter_confl
 # mkdir -p $DATA_FOLDER
 # cd ../../bank
 # rm -f Bank.csv
 
-mkdir -p data/
+mkdir -p $DATA_FOLDER
 
-L_DATASET=100000000
+L_DATASET=150000000
 S_DATASET=15000000
 # CPU_BACKOFF=250
 
-CPU_THREADS=16
-GPU_BLOCKS=20
+CPU_THREADS=50
+GPU_BLOCKS=600
 GPU_THREADS=128
 
 # CPU_THREADS=4
@@ -30,6 +30,7 @@ TRANSACTION_SIZE=4
 CPU_BACKOFF=0
 PROB_WRITE=100
 USE_TSX=0
+DISABLE_EARLY_VALIDATION=1
 
 rm Bank_LOG.csv
 
@@ -41,6 +42,7 @@ function compile_fn {
 	USE_TSX=$1
 	P_INTERSECT=$2
 	HETM_NB_DEVICES=$3
+	DISABLE_EARLY_VALIDATION=$4
 	./compile.sh opt \
 		CMP_TYPE=COMPRESSED \
 		LOG_TYPE=BMAP \
@@ -48,18 +50,18 @@ function compile_fn {
 		PR_MAX_RWSET_SIZE=50 \
 		BANK_PART=9 \
 		BANK_INTRA_CONFL=0 \
-		GPU_PART=0.55 \
-		CPU_PART=0.55 \
+		GPU_PART=0.52 \
+		CPU_PART=0.52 \
+		DISABLE_EARLY_VALIDATION=$DISABLE_EARLY_VALIDATION \
 		P_INTERSECT=$P_INTERSECT \
 		PROFILE=1 \
-		BMAP_GRAN_BITS=13 \
+		BMAP_GRAN_BITS=14 \
 		DISABLE_NON_BLOCKING=1 \
 		OVERLAP_CPY_BACK=0 \
 		LOG_SIZE=4096 \
 		BMAP_ENC_1BIT=1 \
 		STM_LOG_BUFFER_SIZE=256 \
 		BANK_PART_SCALE=1 \
-		DISABLE_EARLY_VALIDATION=1 \
 		HETM_NB_DEVICES=$HETM_NB_DEVICES \
 		-j 14 >/dev/null
 }
@@ -93,41 +95,45 @@ function actualRun {
 
 function doRunLargeDTST_XGPU {
 	# Seq. access, 18 items, prob. write {5..95}, writes 1%
-	compile_fn $USE_TSX 0.00 $2
-	for s in `seq 1 $SAMPLES`
+	for dev in 0 1
 	do
-		actualRun 50 $DATA_FOLDER/${1}_s${s}
-		mv Bank_LOG.csv $DATA_FOLDER/${1}_s${s}
-	done
+		DISABLE_EARLY_VALIDATION=$dev
+		compile_fn $USE_TSX 0.00 $2 $dev
+		for s in `seq 1 $SAMPLES`
+		do
+			actualRun 50 $DATA_FOLDER/${1}_DEV${dev}_s${s}
+			mv Bank_LOG.csv $DATA_FOLDER/${1}_DEV${dev}_s${s}
+		done
 
-	compile_fn $USE_TSX 0.20 $2
-	for s in `seq 1 $SAMPLES`
-	do
-		actualRun 50 $DATA_FOLDER/${1}_s${s}
-		tail -n 1 Bank_LOG.csv >> $DATA_FOLDER/${1}_s${s}
-	done
+		compile_fn $USE_TSX 0.20 $2 $dev
+		for s in `seq 1 $SAMPLES`
+		do
+			actualRun 50 $DATA_FOLDER/${1}_DEV${dev}_s${s}
+			tail -n 1 Bank_LOG.csv >> $DATA_FOLDER/${1}_DEV${dev}_s${s}
+		done
 
-	compile_fn $USE_TSX 0.50 $2
-	for s in `seq 1 $SAMPLES`
-	do
-		actualRun 50 $DATA_FOLDER/${1}_s${s}
-		tail -n 1 Bank_LOG.csv >> $DATA_FOLDER/${1}_s${s}
-	done
+		compile_fn $USE_TSX 0.50 $2 $dev
+		for s in `seq 1 $SAMPLES`
+		do
+			actualRun 50 $DATA_FOLDER/${1}_DEV${dev}_s${s}
+			tail -n 1 Bank_LOG.csv >> $DATA_FOLDER/${1}_DEV${dev}_s${s}
+		done
 
-	compile_fn $USE_TSX 0.80 $2
-	for s in `seq 1 $SAMPLES`
-	do
-		actualRun 50 $DATA_FOLDER/${1}_s${s}
-		tail -n 1 Bank_LOG.csv >> $DATA_FOLDER/${1}_s${s}
-	done
+		compile_fn $USE_TSX 0.80 $2 $dev
+		for s in `seq 1 $SAMPLES`
+		do
+			actualRun 50 $DATA_FOLDER/${1}_DEV${dev}_s${s}
+			tail -n 1 Bank_LOG.csv >> $DATA_FOLDER/${1}_DEV${dev}_s${s}
+		done
 
-	compile_fn $USE_TSX 1.00 $2
-	for s in `seq 1 $SAMPLES`
-	do
-		actualRun 50 $DATA_FOLDER/${1}_s${s}
-		tail -n 1 Bank_LOG.csv >> $DATA_FOLDER/${1}_s${s}
+		compile_fn $USE_TSX 1.00 $2 $dev
+		for s in `seq 1 $SAMPLES`
+		do
+			actualRun 50 $DATA_FOLDER/${1}_DEV${dev}_s${s}
+			tail -n 1 Bank_LOG.csv >> $DATA_FOLDER/${1}_DEV${dev}_s${s}
+		done
+		rm Bank_LOG.csv
 	done
-	rm Bank_LOG.csv
 }
 
 function doRunLargeDTST_CPU_or_GPU_only {
@@ -165,11 +171,11 @@ GPU_BACKOFF=0
 	PR_MAX_RWSET_SIZE=50               \
 	BANK_PART=9                        \
 	BANK_INTRA_CONFL=0                 \
-	GPU_PART=0.55                      \
-	CPU_PART=0.55                      \
+	GPU_PART=0.52                      \
+	CPU_PART=0.52                      \
 	P_INTERSECT=0.00                   \
 	PROFILE=1 -j 14                    \
-	BMAP_GRAN_BITS=13                  \
+	BMAP_GRAN_BITS=14                  \
 	BANK_PART_SCALE=1                  \
 	HETM_NB_DEVICES=1 >/dev/null
 ### 90% writes
@@ -191,16 +197,15 @@ doRunLargeDTST_CPU_or_GPU_only GPUonly
 	PR_MAX_RWSET_SIZE=50                \
 	BANK_PART=9                         \
 	BANK_INTRA_CONFL=0                  \
-	GPU_PART=0.55                       \
-	CPU_PART=0.55                       \
+	GPU_PART=0.52                       \
+	CPU_PART=0.52                       \
 	P_INTERSECT=0.00                    \
 	PROFILE=1 -j 14                     \
-	BMAP_GRAN_BITS=13                   \
+	BMAP_GRAN_BITS=14                   \
 	BANK_PART_SCALE=1                   \
 	HETM_NB_DEVICES=1 >/dev/null
 ### 90% writes
 doRunLargeDTST_CPU_or_GPU_only CPUonly
-
 
 ############## VERS
 # make clean ; make opt CMP_TYPE=COMPRESSED LOG_TYPE=VERS USE_TSX_IMPL=1 PR_MAX_RWSET_SIZE=50 \
@@ -212,18 +217,13 @@ doRunLargeDTST_CPU_or_GPU_only CPUonly
 
 ############## BMAP
 doRunLargeDTST_XGPU BMAP_1GPU 1
-
 doRunLargeDTST_XGPU BMAP_2GPU 2
-
 doRunLargeDTST_XGPU BMAP_3GPU 3
-
 doRunLargeDTST_XGPU BMAP_4GPU 4
 
-doRunLargeDTST_XGPU BMAP_4GPU 8
-
-doRunLargeDTST_XGPU BMAP_4GPU 12
-
-doRunLargeDTST_XGPU BMAP_4GPU 16
+# doRunLargeDTST_XGPU BMAP_4GPU 8
+# doRunLargeDTST_XGPU BMAP_4GPU 12
+# doRunLargeDTST_XGPU BMAP_4GPU 16
 
 mkdir -p data/inter_conf
 mv data/*_s* data/inter_conf/

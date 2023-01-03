@@ -32,7 +32,7 @@ void bank_part9_init()
 				cpu_ptr[i] = GPU_ACCESS(j, pos, parsedData.nb_accounts-20);
 			else
 #endif
-				cpu_ptr[i] = GPU_ACCESS(j, pos % 128, parsedData.nb_accounts-20);
+				cpu_ptr[i] = GPU_ACCESS(j, pos, parsedData.nb_accounts-20);
 			assert(cpu_ptr[i] < parsedData.nb_accounts-20 && "Invalid account");
 		}
 
@@ -43,7 +43,7 @@ void bank_part9_init()
 		for (int i = 0; i < buffer_last; ++i) {
 			unsigned cnfl_rnd = RAND_R_FNC(input_seed);
 			unsigned pos = RAND_R_FNC(input_seed);
-			if (i % 128 == 0) {
+			if (i % 1024 == 0) {
 				cpu_ptr[i] = INTERSECT_ACCESS(rnd, parsedData.nb_accounts-20);
 				rnd++;
 				// cpu_ptr[i] = i%128; // deterministic intersection
@@ -85,7 +85,7 @@ void bank_part9_init()
 			CPUInputBuffer[i] = CPU_ACCESS(pos, parsedData.nb_accounts-20);
 		else
 #endif
-			CPUInputBuffer[i] = CPU_ACCESS(pos % 128, parsedData.nb_accounts-20);		
+			CPUInputBuffer[i] = CPU_ACCESS(pos, parsedData.nb_accounts-20);		
 	}
 
 	reset_rnd = RAND_R_FNC(input_seed);
@@ -93,7 +93,7 @@ void bank_part9_init()
 	for (int i = good_buffers_last; i < bad_buffers_last; ++i) {
 		unsigned cnfl_rnd = RAND_R_FNC(input_seed);
 		unsigned pos = RAND_R_FNC(input_seed);
-		if (i % 128 == 0) {
+		if (i % 1024 == 0) {
 			CPUInputBuffer[i] = INTERSECT_ACCESS(rnd, parsedData.nb_accounts-20);
 			rnd++;
 			// CPUInputBuffer[i] = i%128; // deterministic intersection
@@ -105,7 +105,7 @@ void bank_part9_init()
 			CPUInputBuffer[i] = CPU_ACCESS(pos, parsedData.nb_accounts-20);
 		else
 #endif
-			CPUInputBuffer[i] = CPU_ACCESS(pos % 128, parsedData.nb_accounts-20);
+			CPUInputBuffer[i] = CPU_ACCESS(pos, parsedData.nb_accounts-20);
 	}
 }
 

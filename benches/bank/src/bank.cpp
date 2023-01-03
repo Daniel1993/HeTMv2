@@ -506,6 +506,13 @@ int main(int argc, char **argv)
 		HeTM_choose_policy(choose_policy);
 
 		HeTM_start(test, test_cuda, data);
+
+		printf("Warming up the GPUs...\n");
+
+#if HETM_GPU_EN == 1
+		while (! __atomic_load_n(&HeTM_gshared_data.GPUisNowWarm, __ATOMIC_ACQUIRE));
+#endif
+
 		printf("STARTING...(Run %d)\n", j);
 
 		TIMER_READ(parsedData.start);
@@ -519,6 +526,9 @@ int main(int argc, char **argv)
 			sigemptyset(&block_set);
 			sigsuspend(&block_set);
 		}
+
+		HeTM_request_stop();
+		while (!HeTM_is_stop());
 
 		TIMER_READ(parsedData.end);
 		printf("STOPPING...\n");

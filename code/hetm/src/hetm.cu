@@ -168,16 +168,16 @@ int HeTM_init(HeTM_init_s init)
     PR_curr_dev = i;
     // TODO: init here STM too
     PR_init({
-      // .nbStreams = 2,
-      .nbStreams = 1,
+      .nbStreams = 2,
+      // .nbStreams = 1,
       .lockTableSize = PR_LOCK_TABLE_SIZE
     }); // inits PR-STM mutex array
 
     Config::GetInstance()->SelDev(i);
 
     HeTM_memStream[i] = PR_global[PR_curr_dev].PR_streams[0];
-    // HeTM_memStream2[i] = PR_global[PR_curr_dev].PR_streams[1];
-    HeTM_memStream2[i] = PR_global[PR_curr_dev].PR_streams[0];
+    HeTM_memStream2[i] = PR_global[PR_curr_dev].PR_streams[1];
+    // HeTM_memStream2[i] = PR_global[PR_curr_dev].PR_streams[0];
 
     pr_tx_args_s *pr_args = getPrSTMmetaData(PR_curr_dev);
     PR_global[PR_curr_dev].PR_blockNum = init.nbGPUBlocks;
@@ -315,7 +315,9 @@ run_interGPUConflDetect(
   HeTM_knl_global_s knl_global = knl_cmp_args.knlGlobal;
   size_t chunk_size = 1 << BMAP_GRAN_BITS; // just for 1 chunk
   size_t cacheSize = (knl_global.nbGranules + (chunk_size-1)) / chunk_size;
+#ifndef BMAP_ENC_1BIT
   unsigned char batchCount = data->knlArgs.batchCount;
+#endif
   int thereIsKernel = 0;
   // HeTM_thread_s *threadData = (HeTM_thread_s*)data->clbkArgs;
 
@@ -383,25 +385,42 @@ run_CPUGPUConflDetect(
   size_t chunkSize = 1 << BMAP_GRAN_BITS;
   size_t cacheSize = (knl_global.nbGranules + (chunkSize-1)) / chunkSize;
   int devId = knl_cmp_args.devId;
+#ifndef BMAP_ENC_1BIT
   unsigned char batchCount = data->knlArgs.batchCount;
+#endif
   unsigned char *cpuWSetCache = (unsigned char *)HeTM_cpu_wset_cache.GetMemObj(devId)->host;
   unsigned char *rsetGPUcache = (unsigned char *)HeTM_gpu_rset_cache.GetMemObj(devId)->host;
 
   // printf("run_CPUGPUConflDetect cacheSize %zu chunkSize %zu threadsX %i\n", cacheSize, chunkSize, params.threads.x);
+  int blockX = (params.threads.x + chunkSize) / params.threads.x;
+  int blockXacc = 0;
+  int saveI = 0;
   for (int i = 0; i < cacheSize; ++i)
   {
-    int blockX = (params.threads.x + chunkSize) / params.threads.x;
     int inCPUWSet;
     int inGPURSet;
     CHECK_BMAP_POS(inCPUWSet, inGPURSet, cpuWSetCache, rsetGPUcache, i, batchCount);
     if (inCPUWSet && inGPURSet)
     {
+      if (blockXacc == 0)
+        saveI = i;
+      blockXacc += blockX;
+    }
+    if (!(inCPUWSet && inGPURSet) && blockXacc > 0)
+    {
       // printf("run_CPUGPUConflDetect pos %i/%zu (threadsX=%i, blocksX=%i, offset=%zu)\n",
       //   i, cacheSize, params.threads.x, blockX, i*chunkSize);
-      dim3 blocks(blockX, params.blocks.y, params.blocks.z);
+      dim3 blocks(blockXacc, params.blocks.y, params.blocks.z);
       dim3 threads(params.threads.x, params.threads.y, params.threads.z);
-      CPUGPUConflDetect<<<blocks, threads, 0, stream>>>(data->knlArgs, i*chunkSize);
+      CPUGPUConflDetect<<<blocks, threads, 0, stream>>>(data->knlArgs, saveI*chunkSize);
+      blockXacc = 0;
     }
+  }
+  if (blockXacc > 0)
+  {
+    dim3 blocks(blockXacc, params.blocks.y, params.blocks.z);
+    dim3 threads(params.threads.x, params.threads.y, params.threads.z);
+    CPUGPUConflDetect<<<blocks, threads, 0, stream>>>(data->knlArgs, saveI*chunkSize);
   }
 }
 
@@ -414,7 +433,9 @@ run_CPUrsGPUwsConflDetect(
   HeTM_cmp_s *data = (HeTM_cmp_s*)m->host;
   size_t cacheChunk = 1 << BMAP_GRAN_BITS;
   size_t cacheSize = (data->knlArgs.knlGlobal.nbGranules + (cacheChunk-1)) / cacheChunk;
+#ifndef BMAP_ENC_1BIT
   unsigned char batchCount = data->knlArgs.batchCount;
+#endif
   int devId = data->knlArgs.devId;
   // data->knlArgs.knlGlobal.devRSet
   unsigned char *cpuRSetCache = (unsigned char *)HeTM_cpu_rset_cache.GetMemObj(devId)->host;

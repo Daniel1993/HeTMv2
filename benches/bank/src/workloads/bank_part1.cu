@@ -89,7 +89,7 @@ void bank_part1_cpu_run(int id, thread_data_t *d)
 	curr_tx = curr_tx % NB_CPU_TXS_PER_THREAD;
 	// int index1 = buffers_start+id*NB_CPU_TXS_PER_THREAD + curr_tx;
 	
-	assert(0 < accounts_vec[0] && parsedData.nb_accounts > accounts_vec[0] && "invalid account idx");
+	assert(0 <= accounts_vec[0] && parsedData.nb_accounts > accounts_vec[0] && "invalid account idx");
 
 	if (rndOpt % 100 < d->nb_read_intensive) {
 		for (int i = 1; i < d->read_intensive_size+1; ++i) {

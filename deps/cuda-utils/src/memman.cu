@@ -146,14 +146,14 @@ memman::MemObj::CpyDtD(
   int mId = GetActualDev(devId);
   if ( oId == mId )
     if (strm)
-        CUDA_CPY_DtD_ASYNC(other->dev, dev, size, s);
-      else
-        CUDA_CPY_DtD(other->dev, dev, size);
+      { /* printf(" --1-- DtD ASYNC!!!\n"); */ CUDA_CPY_DtD_ASYNC(other->dev, dev, size, s); }
+    else
+      { /* printf(" --1-- DtD!!!\n"); */ CUDA_CPY_DtD(other->dev, dev, size); }
   else
     if (strm)
-        CUDA_CPY_PtP_ASYNC(other->dev, oId, dev, mId, size, s);
-      else
-        CUDA_CPY_PtP(other->dev, oId, dev, mId, size);
+      { /* printf(" --2-- PtP ASYNC!!!\n"); */ CUDA_CPY_PtP_ASYNC(other->dev, oId, dev, mId, size, NULL/* s */); }
+    else
+      { /* printf(" --2-- PtP!!!\n"); */ CUDA_CPY_PtP(other->dev, oId, dev, mId, size); }
 }
 
 void 
@@ -482,17 +482,17 @@ memman::MemObjCpyDtD::CpyFilterTemplate(
   int aDstId = GetActualDev(dstId);
 
   if (aSrcId != aDstId)
-    CUDA_CPY_PtP_ASYNC(buf, aDstId, s, aSrcId, sz, strm);
-  else
-    CUDA_CPY_DtD_ASYNC(buf, s, sz, strm);
+    { /* printf(" --4-- PtP ASYNC!!!\n");  */CUDA_CPY_PtP_ASYNC(buf, aDstId, s, aSrcId, sz, NULL/* strm */); }
+  else 
+    { /* printf(" --4-- DtD ASYNC!!!\n");  */CUDA_CPY_DtD_ASYNC(buf, s, sz, strm); }
 
-  // printf("Copied %zuB from GPU%i (%p) to GPU%i (%p)\n", sz, srcId, buf, dstId, d);
-  if (gran_apply == 1)
-    apply_BMAP_1B<<<nbBlcks, nbThrs, 0, (cudaStream_t)strm>>>(f, fVal, sz, (unsigned char*)d, (unsigned char*)buf);
-  else if (gran_apply == 4)
-    apply_BMAP_4B<<<nbBlcks, nbThrs, 0, (cudaStream_t)strm>>>(f, fVal, sz, (int*)d, (int*)buf);
-  // CUDA_CHECK_ERROR(cudaStreamSynchronize((cudaStream_t)strm), "");
-  return sz;
+    // printf("Copied %zuB from GPU%i (%p) to GPU%i (%p)\n", sz, srcId, buf, dstId, d);
+    if (gran_apply == 1)
+      apply_BMAP_1B<<<nbBlcks, nbThrs, 0, (cudaStream_t)strm>>>(f, fVal, sz, (unsigned char *)d, (unsigned char *)buf);
+    else if (gran_apply == 4)
+      apply_BMAP_4B<<<nbBlcks, nbThrs, 0, (cudaStream_t)strm>>>(f, fVal, sz, (int *)d, (int *)buf);
+    // CUDA_CHECK_ERROR(cudaStreamSynchronize((cudaStream_t)strm), "");
+    return sz;
 }
 
 size_t
@@ -512,14 +512,14 @@ memman::MemObjCpyDtD::CpyContiguousTemplate(
 
   if (strm)
     if (aSrcId == aDstId)
-      CUDA_CPY_DtD_ASYNC(d, s, size, strm);
+      { /* printf(" --5-- DtD ASYNC!!!\n");  */CUDA_CPY_DtD_ASYNC(d, s, size, strm); }
     else
-      CUDA_CPY_PtP_ASYNC(d, aDstId, s, aSrcId, size, strm);
+      { /* printf(" --5-- PtP ASYNC!!!\n");  */CUDA_CPY_PtP_ASYNC(d, aDstId, s, aSrcId, size, NULL/* strm */); }
   else
     if (aSrcId == aDstId)
-      CUDA_CPY_DtD(d, s, size);
+      { /* printf(" --6-- DtD!!!\n");  */CUDA_CPY_DtD(d, s, size); }
     else
-      CUDA_CPY_PtP(d, aDstId, s, aSrcId, size);
+      { /* printf(" --6-- PtP!!!\n");  */CUDA_CPY_PtP(d, aDstId, s, aSrcId, size); }
   return size;
 }
 

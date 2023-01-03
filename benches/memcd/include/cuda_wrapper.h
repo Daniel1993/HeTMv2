@@ -90,7 +90,7 @@ typedef struct stream_info {
  ****************************************************************************/
 
 // TODO: put GRANULE_T or account_t
-cuda_t * jobWithCuda_init(account_t *base, int nbCPUThreads, int size, int trans, int hash, int tx, int bl, int hprob, float hmult);
+cuda_t * jobWithCuda_init(account_t **base, int nbCPUThreads, int size, int trans, int hash, int tx, int bl, int hprob, float hmult);
 void jobWithCuda_initMemcd(cuda_t *cd, int ways, int sets, float wr, int sr); // memcd
 
 int jobWithCuda_run(cuda_t *d, account_t *a);

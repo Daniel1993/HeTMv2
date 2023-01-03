@@ -84,7 +84,7 @@ static void offloadBankTxThread(void *argsPtr); // bank_tx
  ****************************************/
  // TODO: put GRANULE_T or account_t
 
-cuda_t *jobWithCuda_init(account_t *accounts, int nbCPUThreads, int size, int trans, int hash, int tx, int bl, int hprob, float hmult)
+cuda_t *jobWithCuda_init(account_t **accounts, int nbCPUThreads, int size, int trans, int hash, int tx, int bl, int hprob, float hmult)
 {
   //int *a = (int *)malloc(size * sizeof(int));
   cuda_config cuda_info;    //Cuda config info
@@ -113,8 +113,8 @@ cuda_t *jobWithCuda_init(account_t *accounts, int nbCPUThreads, int size, int tr
     Config::GetInstance()->SelDev(j);
     cuda_configCpy(cuda_info);
     HeTM_initCurandState(j);
-    c_data[j].host_a = accounts;
-    c_data[j].dev_a = (account_t*)HeTM_map_addr_to_gpu(j, accounts);
+    c_data[j].host_a = accounts[j];
+    c_data[j].dev_a = (account_t*)HeTM_map_addr_to_gpu(j, accounts[j]);
 
     c_data[j].devStates = HeTM_gshared_data.devCurandState;
     c_data[j].size      = cuda_info.size;
@@ -259,7 +259,6 @@ void jobWithCuda_exit(cuda_t * d)
   if (d != NULL) {
     for (int j = 0; j < Config::GetInstance()->NbGPUs(); j++)
       HeTM_destroyCurandState(j);
-    HeTM_destroy();
     PR_teardown();
   }
 

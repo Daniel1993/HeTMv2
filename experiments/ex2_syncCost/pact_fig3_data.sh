@@ -5,7 +5,7 @@ mkdir -p $DATA_FOLDER
 
 cd ../../benches/bank
 
-SAMPLES=5
+SAMPLES=3
 DURATION_ORG=20000
 DURATION_GPU=8000
 #./makeTM.sh
@@ -17,9 +17,9 @@ L_DATASET=150000000
 S_DATASET=15000000
 # CPU_BACKOFF=250
 
-CPU_THREADS=16
+CPU_THREADS=50
 GPU_THREADS=128
-GPU_BLOCKS=30
+GPU_BLOCKS=600
 TRANSACTION_SIZE=4
 CPU_BACKOFF=0
 # GPU_BACKOFF=800000
@@ -41,8 +41,8 @@ function compile_fn {
 		PR_MAX_RWSET_SIZE=50 \
 		BANK_PART=9 \
 		BANK_INTRA_CONFL=0 \
-		GPU_PART=0.55 \
-		CPU_PART=0.55 \
+		GPU_PART=0.52 \
+		CPU_PART=0.52 \
 		P_INTERSECT=$P_INTERSECT \
 		PROFILE=1 \
 		BMAP_GRAN_BITS=14 \
@@ -116,8 +116,8 @@ DATASET=$L_DATASET
 	USE_TSX_IMPL=0                     \
 	PR_MAX_RWSET_SIZE=200              \
 	BANK_PART=9                        \
-	GPU_PART=0.55                      \
-	CPU_PART=0.55                      \
+	GPU_PART=0.52                      \
+	CPU_PART=0.52                      \
 	P_INTERSECT=0.00                   \
 	PROFILE=1                          \
 	BMAP_GRAN_BITS=14 \
@@ -137,8 +137,8 @@ done
 	USE_TSX_IMPL=0                     \
 	PR_MAX_RWSET_SIZE=200              \
 	BANK_PART=9                        \
-	GPU_PART=0.55                      \
-	CPU_PART=0.55                      \
+	GPU_PART=0.52                      \
+	CPU_PART=0.52                      \
 	P_INTERSECT=0.00                   \
 	PROFILE=1                          \
 	BMAP_GRAN_BITS=14                  \

@@ -70,8 +70,10 @@ bank_parseArgs(
   data->GPUblockNum       = DEFAULT_blockNum;
   data->GPUthreadNum      = DEFAULT_threadNum;
 
-  data->GPUInputFile      = TO_C_STR(DEFAULT_GPU_FILE);
-  data->CPUInputFile      = TO_C_STR(DEFAULT_CPU_FILE);
+  sprintf(data->GPUInputFile, "%s", TO_C_STR(DEFAULT_GPU_FILE));
+  sprintf(data->CPUInputFile, "%s", TO_C_STR(DEFAULT_CPU_FILE));
+  sprintf(data->filename, "%s", TO_C_STR(DEFAULT_OUTPUT_FILE));
+  sprintf(data->fn, "%s", TO_C_STR(DEFAULT_OUTPUT_FILE));
 
   data->timeBudget        = 0.01f;
 
@@ -164,6 +166,7 @@ bank_parseArgs(
         exit(0);
       case 'a':
         data->nb_accounts = atoi(optarg);
+        data->num_sets = atoi(optarg);
         break;
       case 'd':
         data->duration = atoi(optarg);
@@ -213,13 +216,14 @@ bank_parseArgs(
         printf("Use -h or --help for help\n");
         exit(0);
       case 'f':
-        data->fn = TO_C_STR(optarg);
+        sprintf(data->fn, "%s", TO_C_STR(optarg));
+        sprintf(data->filename, "%s", TO_C_STR(optarg));
         break;
       case 'G':
-        data->GPUInputFile = optarg;
+        sprintf(data->GPUInputFile, "%s", TO_C_STR(optarg));
         break;
       case 'C':
-        data->CPUInputFile = optarg;
+        sprintf(data->CPUInputFile, "%s", TO_C_STR(optarg));
         break;
       case 'R':
         data->nb_read_intensive = atoi(optarg);
@@ -235,11 +239,13 @@ bank_parseArgs(
   data->CPU_backoff = 100;
   if (input_exists("CPU_BACKOFF")) {
     data->CPU_backoff = input_getLong("CPU_BACKOFF");
+    if (data->CPU_backoff < 2) data->CPU_backoff = 2;
   }
 
   data->GPU_backoff = 100;
   if (input_exists("GPU_BACKOFF")) {
     data->GPU_backoff = input_getLong("GPU_BACKOFF");
+    if (data->GPU_backoff < 2) data->GPU_backoff = 2;
   }
 
   data->GPU_batch_duration = 100;
@@ -454,7 +460,7 @@ void bank_statsFile(thread_data_t *data)
         "GPU4_THROUGHPUT(41);"
         "GPU5_THROUGHPUT(42);"
         "GPU6_THROUGHPUT(43);"
-        "GPU7_THROUGHPUT(44)"
+        "TIME_BUDGET(44)"
         "\n"
       );
     }
@@ -493,8 +499,8 @@ void bank_statsFile(thread_data_t *data)
     fprintf(f, "%f;" , HeTM_stats_data.timeCMP               ); // TIME_AFTER_BATCH(23)
     fprintf(f, "%f;" , HeTM_stats_data.timeAfterCMP          ); // TIME_AFTER_CMP(24)
     fprintf(f, "%f;" , HeTM_stats_data.timeDtD               ); // TIME_CPY_DtD(25) in ms
-    fprintf(f, "%f;" , HeTM_stats_data.totalTimeCmp/1000.0   ); // TIME_CMP(26)
-    fprintf(f, "%f;" , HeTM_stats_data.totalTimeCpyDataset/1000.0); // TIME_CPY_DATASET(27)
+    fprintf(f, "%f;" , HeTM_stats_data.totalTimeCmp          ); // TIME_CMP(26)
+    fprintf(f, "%f;" , HeTM_stats_data.totalTimeCpyDataset   ); // TIME_CPY_DATASET(27)
     fprintf(f, "%f;" , HeTM_stats_data.timeWaitingFVSalg     ); // TIME_COMPUTING_FVS(28)
     fprintf(f, "%li;", HeTM_stats_data.txsNonBlocking        ); // CPU_TXs_BETWEEN_BATCHES(29)
     fprintf(f, "%f;" , HeTM_stats_data.timeNonBlocking       ); // TIME_NON_BLOCKING(30)
@@ -511,7 +517,7 @@ void bank_statsFile(thread_data_t *data)
     fprintf(f, "%li;", -1L                                   ); // GPU4_THROUGHPUT(41)
     fprintf(f, "%li;", -1L                                   ); // GPU5_THROUGHPUT(42)
     fprintf(f, "%li;", -1L                                   ); // GPU6_THROUGHPUT(43)
-    fprintf(f, "%li" , -1L                                   ); // GPU7_THROUGHPUT(44)
+    fprintf(f, "%f"  , data->timeBudget                      ); // TIME_BUDGET(44)
     fprintf(f, "\n");
     fclose(f);
 }
@@ -562,9 +568,9 @@ void bank_between_iter(thread_data_t *data, int j)
 void bank_check_params(thread_data_t *data)
 {
   if (data->fn != NULL)
-		data->filename = data->fn;
+		sprintf(data->filename, "%s", data->fn);
   else
-		data->filename = DEFAULT_OUTPUT_FILE;
+		sprintf(data->filename, "%s", DEFAULT_OUTPUT_FILE);
 
   assert(data->duration >= 0);
   assert(data->nb_accounts >= 2);
@@ -574,6 +580,8 @@ void bank_check_params(thread_data_t *data)
   assert(data->iter <= MAX_ITER);
   assert(data->trfs <= MAX_ITER);
   assert(data->trans >= 0);
+  assert(data->CPU_steal_prob <= 1.0 && data->CPU_steal_prob >= 0.0);
+  assert(data->GPU_steal_prob <= 1.0 && data->GPU_steal_prob >= 0.0);
 
   printf("Nb accounts    : %d\n", data->nb_accounts);
 #ifndef TM_COMPILER
@@ -599,11 +607,11 @@ void bank_check_params(thread_data_t *data)
   printf("Output file    : %s\n", data->filename);
   DEBUG_PRINT("Debug	       : Enabled\n");
 
-#ifndef TM_COMPILER
-  char *stm_flags;
-  if (stm_get_parameter("compile_flags", &stm_flags))
-	printf("STM flags      : %s\n", stm_flags);
-#endif /* TM_COMPILER */
+// #ifndef TM_COMPILER
+//   char *stm_flags;
+//   if (stm_get_parameter("compile_flags", &stm_flags))
+// 	printf("STM flags      : %s\n", stm_flags);
+// #endif /* TM_COMPILER */
 
   data->timeout.tv_sec = data->duration / 1000;
   data->timeout.tv_nsec = ((long)data->duration % 1000) * 1000000;

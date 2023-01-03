@@ -14,20 +14,11 @@
 #include "chunked-log-aux.h"
 #include <assert.h>
 #include <errno.h>
+#include "hetm-utils.h"
 
 #ifndef HETM_NB_DEVICES
 #define HETM_NB_DEVICES 2
 #endif
-
-#ifndef malloc_or_die
-#define malloc_or_die(var, nb) \
-if (((var) = (__typeof__((var)))malloc((nb) * sizeof(__typeof__(*(var))))) == NULL) { \
-  fprintf(stderr, "malloc error \"%s\" at " __FILE__":%i\n", \
-  strerror(errno), __LINE__); \
-  exit(EXIT_FAILURE); \
-}
-#endif /* malloc_or_die */
-
 
 typedef struct chunked_log_node_ {
   char* volatile chunk; // assuming sizeof(char) == 1 Byte (8 bits)

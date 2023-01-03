@@ -33,18 +33,18 @@ plot \
      sprintf("%s/BMAP_rand_sep_2GPU_w%s.avg", ARG1, ARG3)              using 45:18 notitle with linespoints linecolor rgbcolor "#BA009A" pt 2 lw 2 ps 0.8, \
      sprintf("%s/BMAP_rand_sep_3GPU_w%s.avg", ARG1, ARG3)              using 45:18 notitle with linespoints linecolor rgbcolor "#55FF00" pt 3 lw 2 ps 0.8, \
      sprintf("%s/BMAP_rand_sep_4GPU_w%s.avg", ARG1, ARG3)              using 45:18 notitle with linespoints linecolor rgbcolor "#1198DA" pt 4 lw 2 ps 0.8, \
-     sprintf("%s/BMAP_rand_sep_8GPU_w%s.avg", ARG1, ARG3)              using 45:18 notitle with linespoints linecolor rgbcolor "#333333" dashtype '.' pt 5 lw 2 ps 0.8, \
-     sprintf("%s/BMAP_rand_sep_12GPU_w%s.avg", ARG1, ARG3)             using 45:18 notitle with linespoints linecolor rgbcolor "#999999" dashtype '.' pt 7 lw 2 ps 0.8, \
      sprintf("%s/CPUonly_rand_sep_DISABLED_large_w%s.avg", ARG1, ARG3) using 45:18 notitle with linespoints linecolor rgbcolor "#13FF03" dashtype '-' pt 6 lw 1 ps 0.8, \
      sprintf("%s/GPUonly_rand_sep_DISABLED_large_w%s.avg", ARG1, ARG3) using 45:18 notitle with linespoints linecolor rgbcolor "#13C3C3" dashtype '-' pt 4 lw 1 ps 0.8, \
      1/0 with linespoints linecolor rgbcolor "#FF0000"  pt 1 lw 3 ps 1 ti "SHeTM 1GPU", \
      1/0 with linespoints linecolor rgbcolor "#BA009A"  pt 2 lw 3 ps 1 ti "SHeTM 2GPU", \
      1/0 with linespoints linecolor rgbcolor "#55FF00"  pt 3 lw 3 ps 1 ti "SHeTM 3GPU", \
      1/0 with linespoints linecolor rgbcolor "#1198DA"  pt 4 lw 3 ps 1 ti "SHeTM 4GPU", \
-     1/0 with linespoints linecolor rgbcolor "#333333" dashtype '.' pt 5 lw 3 ps 1 ti "*SHeTM 8GPU*", \
-     1/0 with linespoints linecolor rgbcolor "#999999" dashtype '.' pt 7 lw 3 ps 1 ti "*SHeTM 12GPU*", \
      1/0 with linespoints linecolor rgbcolor "#13FF03"  dashtype '-' pt 6 lw 3 ps 1 ti "CPU only", \
      1/0 with linespoints linecolor rgbcolor "#13C3C3"  dashtype '-' pt 4 lw 3 ps 1 ti "GPU only" \
+    #  sprintf("%s/BMAP_rand_sep_8GPU_w%s.avg", ARG1, ARG3)              using 45:18 notitle with linespoints linecolor rgbcolor "#333333" dashtype '.' pt 5 lw 2 ps 0.8, \
+    #  sprintf("%s/BMAP_rand_sep_12GPU_w%s.avg", ARG1, ARG3)             using 45:18 notitle with linespoints linecolor rgbcolor "#999999" dashtype '.' pt 7 lw 2 ps 0.8, \
+    #  1/0 with linespoints linecolor rgbcolor "#333333" dashtype '.' pt 5 lw 3 ps 1 ti "*SHeTM 8GPU*", \
+    #  1/0 with linespoints linecolor rgbcolor "#999999" dashtype '.' pt 7 lw 3 ps 1 ti "*SHeTM 12GPU*", \
      #sprintf("%s/SHeTM_basic_w100.avg", ARG1) using 37:18 notitle with linespoints linecolor rgbcolor "#13DD56" pt 3 lw 1 ps 0.8, \
      #sprintf("%s/SHeTM_opt_w100.avg", ARG1)   using 37:18 notitle with linespoints linecolor rgbcolor "#569913" pt 5 lw 1 ps 0.8, \
      #1/0 with linespoints linecolor rgbcolor "#13FF56"  pt 3 lw 3 ps 1 ti "SHeTM basic", \

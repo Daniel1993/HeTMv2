@@ -4,34 +4,36 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-	void GPUbufferReadFromFile_NO_CONFLS();
-	void GPUbufferReadFromFile_CONFLS();
-  void GPUbufferReadFromFile_UNIF_RAND();
 
-  void CPUbufferReadFromFile_NO_CONFLS();
-  void CPUbufferReadFromFile_CONFLS();
-  void CPUbufferReadFromFile_UNIF_RAND();
+void GPUbufferReadFromFile_NO_CONFLS();
+void GPUbufferReadFromFile_CONFLS();
+void GPUbufferReadFromFile_UNIF_RAND();
 
-  void GPUbuffer_NO_CONFLS();
-  void CPUbuffer_NO_CONFLS();
+void CPUbufferReadFromFile_NO_CONFLS();
+void CPUbufferReadFromFile_CONFLS();
+void CPUbufferReadFromFile_UNIF_RAND();
 
-  void GPUbuffer_UNIF_2();
-  void CPUbuffer_UNIF_2();
+void GPUbuffer_NO_CONFLS();
+void CPUbuffer_NO_CONFLS();
 
-  void GPUbuffer_ZIPF_2();
-  void CPUbuffer_ZIPF_2();
-#ifdef __cplusplus
-}
-#endif
+void GPUbuffer_UNIF_2();
+void CPUbuffer_UNIF_2();
+
+void GPUbuffer_ZIPF_2();
+void CPUbuffer_ZIPF_2();
+
+void GPUbuffer_ZIPF_3();
+void CPUbuffer_ZIPF_3();
+
 
 extern thread_data_t parsedData;
 extern int isInterBatch;
 extern size_t accountsSize;
 extern size_t sizePool;
-extern void* gpuMempool;
+extern void* gpuMempool[HETM_NB_DEVICES];
 
 const static int NB_OF_GPU_BUFFERS = 64; // GPU receives some more space
-const static int NB_CPU_TXS_PER_THREAD = 16384;
+const static int NB_CPU_TXS_PER_THREAD = 32768;
 
 extern size_t currMaxCPUoutputBufferSize;
 extern size_t currCPUoutputBufferPtr;
@@ -42,5 +44,9 @@ extern int lockOutputBuffer;
 
 extern FILE *GPU_input_file;
 extern FILE *CPU_input_file;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* MEMCD_H_GUARD */

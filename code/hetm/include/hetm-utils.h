@@ -1,7 +1,6 @@
 #ifndef HETM_UTILS_H_GUARD_
 #define HETM_UTILS_H_GUARD_
 
-// ------------- TODO: don't like this API for the malloc
 #define malloc_or_die(var, nb) \
 if (((var) = (__typeof__((var)))malloc((nb) * sizeof(__typeof__(*(var))))) == NULL) { \
   fprintf(stderr, "malloc error \"%s\" at " __FILE__":%i\n", \
@@ -9,7 +8,6 @@ if (((var) = (__typeof__((var)))malloc((nb) * sizeof(__typeof__(*(var))))) == NU
   exit(EXIT_FAILURE); \
 } \
 //
-// -------------
 
 /* ################################################################### *
  * BARRIER

@@ -1,6 +1,8 @@
 #ifndef STM_WRAPPER_H_GUARD_
 #define STM_WRAPPER_H_GUARD_
 
+#include <stm.h>
+
 /*
  * Useful macros to work with transactions. Note that, to use nested
  * transactions, one should check the environment returned by
@@ -24,7 +26,7 @@
 //
 
 // TODO: does assumptions on the machine --> PR-STM works with ints
-#define TM_LOAD(addr) ({ \
+#define TM_LOAD_XPTO(addr) ({ \
   uintptr_t _mask64Bits = ((uintptr_t)(-1L)) << 3L; \
   uintptr_t _newAddr = (uintptr_t)(addr) & _mask64Bits; \
   uintptr_t _loaded, _high, _low; \
@@ -32,15 +34,32 @@
   HeTM_bufAddrs_reads[HeTM_ptr_reads] = addr; \
   /*HeTM_bufVers[HeTM_ptr]  = 0;*/ \
   HeTM_ptr_reads++; \
-  _loaded = stm_load((stm_word_t *)_newAddr); \
-  _low = _loaded & (0xFFFFFFFFL); \
-  _high = (_loaded & (0xFFFFFFFFL << 32)) >> 32; \
+  _loaded = stm_load((uintptr_t *)_newAddr); \
+  _low = _loaded & (0xFFFFFFFFUL); \
+  _high = (_loaded & (0xFFFFFFFFUL << 32)) >> 32; \
   if ((uintptr_t)(addr) & 0x4) \
     _res = _high; \
   else \
     _res = _low; \
   _res; \
 })
+static int TM_LOAD(void *addr) { 
+  uintptr_t _mask64Bits = ((uintptr_t)(-1L)) << 3L;
+  uintptr_t _newAddr = (uintptr_t)(addr) & _mask64Bits;
+  uintptr_t _loaded, _high, _low;
+  int _res;
+  HeTM_bufAddrs_reads[HeTM_ptr_reads] = addr;
+  /*HeTM_bufVers[HeTM_ptr]  = 0;*/
+  HeTM_ptr_reads++;
+  _loaded = stm_load((uintptr_t *)_newAddr);
+  _low = _loaded & (0xFFFFFFFFUL);
+  _high = (_loaded & (0xFFFFFFFFUL << 32)) >> 32;
+  if ((uintptr_t)(addr) & 0x4)
+    _res = _high;
+  else
+    _res = _low;
+  return _res;
+}
 
 // TODO: TinySTM bug on 32 bit addresses
 #define TM_STORE(addr, value) ({ \
@@ -52,11 +71,11 @@
   /*HeTM_bufVers[HeTM_ptr]  = 0;*/ \
   HeTM_ptr++; \
   if ((uintptr_t)(addr) & 0x4) { \
-    _high = _value & (0xFFFFFFFFL); \
-    _low = *((stm_word_t*)(_newAddr)) & (0xFFFFFFFFL); \
+    _high = _value & (0xFFFFFFFFUL); \
+    _low = *((stm_word_t*)(_newAddr)) & (0xFFFFFFFFUL); \
   } else { \
-    _high = (*((stm_word_t*)(_newAddr)) & (0xFFFFFFFFL << 32)) >> 32; \
-    _low = _value & (0xFFFFFFFFL); \
+    _high = (*((stm_word_t*)(_newAddr)) & (0xFFFFFFFFUL << 32)) >> 32; \
+    _low = _value & (0xFFFFFFFFUL); \
   } \
   _toStore = (_high << 32) | _low; \
   stm_store((stm_word_t *)(_newAddr), (stm_word_t)_toStore); \
@@ -74,6 +93,7 @@
   for (size_t i = 0; i < HeTM_ptr; ++i) { \
     /* printf("HeTM_bufAddrs[HeTM_ptr]=%li\n", (int*)HeTM_bufAddrs[i] - (int*)HeTM_shared_data[0].mempool_hostptr); */\
     stm_log_newentry(HeTM_log, (long*)HeTM_bufAddrs[i], HeTM_bufVal[i], HeTM_version); \
+    stm_log_read_entry((long*)HeTM_bufAddrs_reads[i]); /* no blind writes */ \
   } \
   for (size_t i = 0; i < HeTM_ptr_reads; ++i) { \
     /* printf("HeTM_bufAddrs_reads[HeTM_ptr_reads]=%p\n", HeTM_bufAddrs_reads[i]); */\

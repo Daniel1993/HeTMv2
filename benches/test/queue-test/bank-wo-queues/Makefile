@@ -3,7 +3,7 @@ HTM_SGL       ?= ~/projs/htm_alg
 HTM_ARCH_DEPS ?= ~/projs/arch_dep
 TBB := ../tbb-2019_U8
 
-HeTM_DIR      ?= ~/projs/HeTM_V1
+HeTM_DIR      ?= ~/projs/HeTM_V2
 HeTM_ROOT     ?= $(HeTM_DIR)/hetm
 TINY_ROOT     ?= $(HeTM_DIR)/tinyMOD
 TSX_ROOT      ?= $(HeTM_DIR)/tsxMOD

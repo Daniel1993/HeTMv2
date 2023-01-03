@@ -42,7 +42,7 @@ std::mutex HeTM_statsMutex; // extern in hetm-threading-gpu
 // thread_local static int awakeGPU[HETM_NB_DEVICES];
 
 static void dealWithDatasetSync(int isNonBlock);
-static void cpyBMAPtoGPU(int devId);
+// static void cpyBMAPtoGPU(int devId);
 // static void broadcastCPUdataset(int devId);
 static void cpyGPUmodificationsToCPU(int devId);
 // static void overrideCPUmodificationsWithGPUdataset(int devId);
@@ -158,7 +158,7 @@ launchCPUrsGPUwsConflDetectKernel(
   m->CpyHtD(HeTM_memStream[devId]);
   HeTM_CPUrsGPUwsConflDetect->blocks  = (knlman_dim3_s){ .x = bo,         .y = 1, .z = 1 };
   HeTM_CPUrsGPUwsConflDetect->threads = (knlman_dim3_s){ .x = nbThreadsX, .y = 1, .z = 1 };
-  cudaStreamSynchronize((cudaStream_t)HeTM_memStream2[devId]);
+  // cudaStreamSynchronize((cudaStream_t)HeTM_memStream2[devId]);
   HeTM_CPUrsGPUwsConflDetect->Run(devId, HeTM_memStream[devId]);
 
   return 0;
@@ -380,8 +380,8 @@ cpyModifications(
     ->SetDst(m_dst_mempool)
     ->SetSrc(m_src_mempool)
     ->SetSizeChunk(BMAP_GRAN)
-    ->SetStrm1(HeTM_memStream[devDst])
-    ->SetStrm2(HeTM_memStream2[devDst])
+    ->SetStrm1(NULL/* HeTM_memStream[devDst] */)
+    ->SetStrm2(NULL/* HeTM_memStream2[devDst] */)
   );
 
   size_t cpySize = m.Cpy();
@@ -415,7 +415,7 @@ cpyModifications(
 // #endif
 } */
 
-static void
+void
 cpyBMAPtoGPU(
   int devId
 ) {
@@ -537,13 +537,29 @@ dealWithDatasetSync(int isNonBlock)
   int tid = HeTM_thread_data[0]->id;
   const int nbGPUs = Config::GetInstance()->NbGPUs();
   const int CPUid = nbGPUs;
-  // TIMER_T t1, t2;
+  TIMER_T datasetSyncT1, datasetSyncT2;
 
   // TODO: requires GPU side to call HeTM_sync_next_batch
   // HETM_DEB_THRD_CPU("thread %i waits for GPU BB\n", tid);
   if (!isNonBlock)
     HeTM_sync_BB(); // wait GPU BB
   // HETM_DEB_THRD_CPU("thread %i after wait for GPU BB\n", tid);
+
+  if (tid != 0) // only CPU thread 0 needed to handle the dataset
+  {
+    if (!isNonBlock)
+      HeTM_sync_BB();
+    return;
+  }
+
+  TIMER_READ(datasetSyncT1);
+
+  // Reset the conflict matrix used to run BB
+  // printf(" ------------------- RESET MAT -------------------\n");
+  for (int k = 0; k < HETM_NB_DEVICES; ++k) {
+    cudaMemset((void*)HeTM_shared_data[k].mat_confl_GPU_devptr, 0, sizeof(char)*((HETM_NB_DEVICES+1)*(HETM_NB_DEVICES+1)));
+  }
+  memset((void*)HeTM_gshared_data.mat_confl_CPU_final, 0, sizeof(char)*((HETM_NB_DEVICES+1)*(HETM_NB_DEVICES+1)));
 
   int *p, *q;
   // int isCPUabort = 1;
@@ -566,6 +582,8 @@ dealWithDatasetSync(int isNonBlock)
     p++;
   }
 
+  assert(-1 != someCommittingDevice && "all devices abort");
+
   // NVTX_PUSH_RANGE("cpy wrts to CPU", NVTX_PROF_CPY_GPUS_TO_CPU);
   p = sol;
   while (*p != -1)
@@ -576,28 +594,21 @@ dealWithDatasetSync(int isNonBlock)
       // modifications are disjoint AND only the modified regions are actually replayed
       if (*q != *p)
       {
-        if (0/* *p % HeTM_gshared_data.nbCPUThreads */ == tid)
-        {
 #ifdef USE_NVTX
-          char prof_msg[128];
-          sprintf(prof_msg, "cpy dataset from dev%i to dev%i\n", *q, *p);
+        char prof_msg[128];
+        sprintf(prof_msg, "cpy dataset from dev%i to dev%i\n", *q, *p);
 #endif /* USE_NVTX */
-          NVTX_PUSH_RANGE(prof_msg, NVTX_PROF_CPY_GPUS_TO_CPU);
-          // printf("[%i] cpy dataset from dev%i to dev%i\n", tid, *q, *p);
-          cpyModifications(*p, *q, /* not override */0);
-          NVTX_POP_RANGE();
-        }
-        if (0/* *q % HeTM_gshared_data.nbCPUThreads */ == tid)
-        {
+        NVTX_PUSH_RANGE(prof_msg, NVTX_PROF_CPY_GPUS_TO_CPU);
+        // printf("[%i] cpy dataset from dev%i to dev%i\n", tid, *q, *p);
+        cpyModifications(*p, *q, /* not override */0);
+        NVTX_POP_RANGE();
 #ifdef USE_NVTX
-          char prof_msg[128];
-          sprintf(prof_msg, "cpy dataset from dev%i to dev%i\n", *p, *q);
+        sprintf(prof_msg, "cpy dataset from dev%i to dev%i\n", *p, *q);
 #endif /* USE_NVTX */
-          NVTX_PUSH_RANGE(prof_msg, NVTX_PROF_CPY_GPUS_TO_CPU);
-          // printf("[%i] cpy dataset from dev%i to dev%i\n", tid, *p, *q);
-          cpyModifications(*q, *p, /* not override */0);
-          NVTX_POP_RANGE();
-        }
+        NVTX_PUSH_RANGE(prof_msg, NVTX_PROF_CPY_GPUS_TO_CPU);
+        // printf("[%i] cpy dataset from dev%i to dev%i\n", tid, *p, *q);
+        cpyModifications(*q, *p, /* not override */0);
+        NVTX_POP_RANGE();
       }
       // printf("   dev%i committed\n", *p);
       /* if (*p != CPUid && (*p % HeTM_gshared_data.nbCPUThreads == tid)) {
@@ -610,20 +621,16 @@ dealWithDatasetSync(int isNonBlock)
 
   while (*abortingDevs != -1)
   {
-    // TODO: need to either augment the write-set of someCommittingDevice or copy all
-    if (*abortingDevs % HeTM_gshared_data.nbCPUThreads == tid)
-    {
-      // printf("DEV%i ABORTED! handled by tid = %i (lost %li)\n", *abortingDevs,
-      //   tid, HeTM_gshared_data.dev_weights[*abortingDevs]);
+    // TODO: do this multi-threaded
 #ifdef USE_NVTX
-      char prof_msg[128];
-      sprintf(prof_msg, "rollback dev%i with dev%i\n", *abortingDevs, someCommittingDevice);
+    char prof_msg[128];
+    sprintf(prof_msg, "rollback dev%i with dev%i\n", *abortingDevs, someCommittingDevice);
 #endif /* USE_NVTX */
-      NVTX_PUSH_RANGE(prof_msg, NVTX_PROF_CPY_GPUS_TO_CPU);
-      // overrideCPUmodificationsWithGPUdataset(someCommittingDevice);
-      cpyModifications(*abortingDevs, someCommittingDevice, /* override */1);
-      NVTX_POP_RANGE();
-    }
+    NVTX_PUSH_RANGE(prof_msg, NVTX_PROF_CPY_GPUS_TO_CPU);
+    // overrideCPUmodificationsWithGPUdataset(someCommittingDevice);
+    cpyModifications(*abortingDevs, someCommittingDevice, /* override */1);
+    NVTX_POP_RANGE();
+
     abortingDevs++;
   }
 
@@ -633,15 +640,11 @@ dealWithDatasetSync(int isNonBlock)
   //   if (i % HeTM_gshared_data.nbCPUThreads == tid)
   //     broadcastCPUdataset(i);
   // }
-  // if (tid == 0)
-  // {
-  //   TIMER_READ(t1);
-  // }
 
   p = sol;
   while (*p != -1)
   {
-    if (*p != CPUid && 0/* (*p % HeTM_gshared_data.nbCPUThreads) */ == tid)
+    if (*p != CPUid)
     {
       // HETM_DEB_THRD_CPU("Wait dataset cpy of dev%i", *p);
       Config::GetInstance()->SelDev(*p);
@@ -650,17 +653,13 @@ dealWithDatasetSync(int isNonBlock)
     p++;
   }
 
-  if (tid == 0)
-  {
-    // TIMER_READ(t2);
-    // printf("CPU handle of sync=%fus dataset cpy=%zu\n", TIMER_DIFF_SECONDS(t1, t2) * 1e6, HeTM_stats_data.sizeCpyDataset);
+  // printf("CPU handle of sync=%fus dataset cpy=%zu\n", TIMER_DIFF_SECONDS(t1, t2) * 1e6, HeTM_stats_data.sizeCpyDataset);
 
-    // Reset the conflict matrix
-    for (int k = 0; k < HETM_NB_DEVICES; ++k) {
-      memset((void*)HeTM_shared_data[k].mat_confl_GPU_unif, 0, sizeof(char)*((HETM_NB_DEVICES+1)*(HETM_NB_DEVICES+1)));
-    }
-    memset((void*)HeTM_gshared_data.mat_confl_CPU_unif, 0, sizeof(char)*((HETM_NB_DEVICES+1)*(HETM_NB_DEVICES+1)));
-  }
+  TIMER_READ(datasetSyncT2);
+  HeTM_stats_data.totalTimeCpyDataset += TIMER_DIFF_SECONDS(datasetSyncT1, datasetSyncT2);
+
+  if (!isNonBlock)
+      HeTM_sync_BB();
 
   // accumulateStatistics();
   // NVTX_POP_RANGE(); // NVTX_PROF_CPY_GPUS_TO_CPU

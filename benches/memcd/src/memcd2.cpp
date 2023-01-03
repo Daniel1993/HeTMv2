@@ -98,7 +98,15 @@ static unsigned long long input_seed = 0x3F12514A3F12514A;
 
 // TODO: memory access
 
-static int fill_GPU_input_buffers()
+template<typename T, typename U>
+static inline auto max(T a, U b) -> decltype(a > b ? a : b)
+{ return a > b ? a : b; }
+
+// template<typename T>
+// static inline T max(T a, T b)
+// { return a > b ? a : b; }
+
+int fill_GPU_input_buffers()
 {
 #if BANK_PART == 1 /* shared queue is %3 == 2 */
 	GPUbufferReadFromFile_NO_CONFLS();
@@ -112,11 +120,13 @@ static int fill_GPU_input_buffers()
 	GPUbuffer_UNIF_2();
 #elif BANK_PART == 6
 	GPUbuffer_ZIPF_2();
+#elif BANK_PART == 7
+	GPUbuffer_ZIPF_3();
 #endif
 	return 0;
 }
 
-static int fill_CPU_input_buffers()
+int fill_CPU_input_buffers()
 {
 #if BANK_PART == 1 /* shared queue is %3 == 1 */
 	CPUbufferReadFromFile_NO_CONFLS();
@@ -130,6 +140,8 @@ static int fill_CPU_input_buffers()
 	CPUbuffer_UNIF_2();
 #elif BANK_PART == 6
 	CPUbuffer_ZIPF_2();
+#elif BANK_PART == 7
+	CPUbuffer_ZIPF_3();
 #endif
 	return 0;
 }
@@ -174,6 +186,7 @@ memcd_get_output_t cpu_GET_kernel(memcd_t *memcd, int *input_key, unsigned input
   memcd_get_output_t response;
 	int key = *input_key;
 	int sizeCache = memcd->nbSets*memcd->nbWays;
+	response.isFound = 0;
 
 	// 1) hash key
 	// modHash = (key>>4) % memcd->nbSets;
@@ -200,12 +213,12 @@ memcd_get_output_t cpu_GET_kernel(memcd_t *memcd, int *input_key, unsigned input
 		size_t newIdx = setIdx + i;
 		__builtin_prefetch(&memcd->state[newIdx], 0, 1);
 		__builtin_prefetch(&memcd->key[newIdx], 0, 1);
-		// __builtin_prefetch(&memcd->extraKey[newIdx], 0, 1);
+		__builtin_prefetch(&memcd->extraKey[newIdx], 0, 1);
 		// __builtin_prefetch(&memcd->extraKey[newIdx+sizeCache], 0, 1);
 		// __builtin_prefetch(&memcd->extraKey[newIdx+2*sizeCache], 0, 1);
 		__builtin_prefetch(&memcd->ts_CPU[newIdx], 1, 1);
 		__builtin_prefetch(&memcd->val[newIdx], 0, 1);
-		// __builtin_prefetch(&memcd->extraVal[newIdx], 0, 1);
+		__builtin_prefetch(&memcd->extraVal[newIdx], 0, 1);
 		// __builtin_prefetch(&memcd->extraVal[newIdx+sizeCache], 0, 1);
 		// __builtin_prefetch(&memcd->extraVal[newIdx+2*sizeCache], 0, 1);
 		// __builtin_prefetch(&memcd->extraVal[newIdx+3*sizeCache], 0, 1);
@@ -238,8 +251,10 @@ memcd_get_output_t cpu_GET_kernel(memcd_t *memcd, int *input_key, unsigned input
 			int readVal6 = TM_LOAD(&memcd->extraVal[newIdx+5*sizeCache]);
 			int readVal7 = TM_LOAD(&memcd->extraVal[newIdx+6*sizeCache]);
 			int* volatile ptr_ts = &memcd->ts_CPU[newIdx];
+			int* volatile ptr_ts_GPU = &memcd->ts_GPU[newIdx];
 			int ts = TM_LOAD(ptr_ts);
-			TM_STORE(ptr_ts, ts+1);
+			int ts_GPU = TM_LOAD(ptr_ts_GPU);
+			TM_STORE(ptr_ts, max(ts, ts_GPU)+1);
 			// *ptr_ts = input_clock; // Done non-transactionally
 			response.isFound = 1;
 			response.value   = readVal|readVal1|readVal2|readVal3|readVal4|readVal5|readVal6|readVal7;
@@ -247,6 +262,9 @@ memcd_get_output_t cpu_GET_kernel(memcd_t *memcd, int *input_key, unsigned input
 		}
 	}
 	TM_COMMIT;
+
+	// if (! response.isFound )
+	// printf("CPU key %i\n", key);
 
   return response;
 }
@@ -403,10 +421,10 @@ void cpu_SET_kernel_NOTX(memcd_t *memcd, int *input_key, int *input_value, unsig
 {
 	size_t modHash, setIdx;
 	memcd_get_output_t response;
-	int key = *input_key;
-	int val = *input_value;
-	int extraKey[3] = {key, key, key};
-	int sizeCache = memcd->nbSets*memcd->nbWays;
+	unsigned key = *input_key;
+	unsigned val = *input_value;
+	unsigned extraKey[3] = {key, key, key};
+	unsigned sizeCache = memcd->nbSets*memcd->nbWays;
 
 	// 1) hash key
 	// modHash = (key>>4) % memcd->nbSets;
@@ -627,7 +645,7 @@ static void before_batch(int id, void *data)
 	isCPUBatchSteal = (RAND_R_FNC(seed) % 1000) < (parsedData.CPU_steal_prob * 1000);
 	isGPUBatchSteal = (RAND_R_FNC(seed) % 1000) < (parsedData.GPU_steal_prob * 1000);
 
-	if (nbBatches % 3 == 0) {
+	if (nbBatches & 15 == 15) {
 		// check the ratio
 		float ratioCPU = ((float)nbCPUStealBatches / (float)nbBatches);
 		float ratioGPU = ((float)nbGPUStealBatches / (float)nbBatches);
@@ -708,7 +726,7 @@ static void test_cuda(int id, void *data)
 	int          gotTXs = 0;
 	int           devId = Config::GetInstance()->SelDev();
 
-	static int counter = 0;
+	thread_local static int counter = 0;
 
 	*(d->memcd->globalTs) += 1;
 
@@ -720,16 +738,27 @@ static void test_cuda(int id, void *data)
 		do {
 			oldStartInputPtr = startInputPtr[GPU_QUEUE];
 			newStartInputPtr = oldStartInputPtr + NB_GPU_TXS;
-		} while (!__sync_bool_compare_and_swap(&startInputPtr[GPU_QUEUE], oldStartInputPtr, newStartInputPtr));
+		}
+		while (!__sync_bool_compare_and_swap(&startInputPtr[GPU_QUEUE], oldStartInputPtr, newStartInputPtr));
+		
 		gotTXs = 1;
-		counter = (counter + 1) % NB_OF_GPU_BUFFERS;
+		counter = (counter + 1) % (NB_OF_GPU_BUFFERS-1);
+		// if (counter == 0)
+		// 	counter++;
 
-		int *cpuInput = (int*)GPU_input_buffer_good.GetMemObj()->host;
+		int *gpuInput_hostPtr = (int*)GPU_input_buffer_good.GetMemObj(devId)->host;
 		// TODO: multiGPU
-		int *gpuInput = (int*)GPU_input_buffer_good.GetMemObj(0)->dev;
-		cpuInput += counter * maxGPUoutputBufferSize;
+		int *gpuInput = (int*)GPU_input_buffer_good.GetMemObj(devId)->dev;
+		// size_t sizeInput = GPU_input_buffer_good.GetMemObj()->size;
+		// printf("sizeInput = %zu\n", sizeInput);
+		// printf("gpuInput = %p, cpuInput = %p\n", gpuInput, cpuInput);
+		int *cpuInputOld = gpuInput_hostPtr;
+		gpuInput_hostPtr += counter * (size_of_GPU_input_buffer/sizeof(int));
 
-		CUDA_CPY_TO_DEV_ASYNC(gpuInput, cpuInput, maxGPUoutputBufferSize * sizeof(int), PR_getCurrentStream());
+		cudaStream_t strm = PR_getCurrentStream(); 
+		CUDA_CPY_TO_DEV_ASYNC(gpuInput, gpuInput_hostPtr, size_of_GPU_input_buffer, strm);
+		// printf("Counter %i  size = %zu  cpuInput = %p dist = %li\n", counter, maxGPUoutputBufferSize, cpuInput, cpuInput - cpuInputOld);
+		// CUDA_CPY_TO_DEV(gpuInput, cpuInput, sizeof(int));
 		// memman_cpy_to_gpu(NULL, NULL, *hetm_batchCount);
 	}
 
@@ -741,16 +770,15 @@ static void test_cuda(int id, void *data)
 		do {
 			oldStartInputPtr = startInputPtr[SHARED_QUEUE];
 			newStartInputPtr = oldStartInputPtr + NB_GPU_TXS;
-		} while (!__sync_bool_compare_and_swap(&startInputPtr[SHARED_QUEUE], oldStartInputPtr, newStartInputPtr));
-		gotTXs = 1;
-		counter = (counter + 1) % NB_OF_GPU_BUFFERS;
+		}
+		while (!__sync_bool_compare_and_swap(&startInputPtr[SHARED_QUEUE], oldStartInputPtr, newStartInputPtr));
 
-		int *cpuInput = (int*)GPU_input_buffer_bad.GetMemObj(devId)->host;
+		int *gpuInput_hostPtr = (int*)GPU_input_buffer_bad.GetMemObj(devId)->host;
 		int *gpuInput = (int*)GPU_input_buffer_bad.GetMemObj(devId)->dev;
-		cpuInput += counter * maxGPUoutputBufferSize;
+		gpuInput_hostPtr += counter * (size_of_GPU_input_buffer/sizeof(int));
 
 		// TODO: after a bad batch all abort (only happens on the GPU steal)
-		CUDA_CPY_TO_DEV_ASYNC(gpuInput, cpuInput, maxGPUoutputBufferSize * sizeof(int), PR_getCurrentStream());
+		CUDA_CPY_TO_DEV_ASYNC(gpuInput, gpuInput_hostPtr, size_of_GPU_input_buffer, PR_getCurrentStream());
 		// memman_cpy_to_gpu(NULL, NULL, *hetm_batchCount);
 	}
 
@@ -785,6 +813,7 @@ static void test_cuda(int id, void *data)
 	}
 	else
 	{
+		// todo: access this in the kernel
 		memcd_global_ts.GetMemObj(devId)->CpyHtD(PR_getCurrentStream());
 		jobWithCuda_runMemcd(d, cd, base_ptr, *(d->memcd->globalTs));
 	}
@@ -833,7 +862,7 @@ int main(int argc, char **argv)
 {
   memcd_t *memcd;
   // barrier_t cuda_barrier;
-  int i, j, ret = -1;
+  int i, ret = -1;
   thread_data_t *data;
   pthread_t *threads;
   barrier_t barrier;
@@ -843,6 +872,8 @@ int main(int argc, char **argv)
   memset(&parsedData, 0, sizeof(thread_data_t));
 
   PRINT_FLAGS();
+
+	Config::GetInstance(nbGPUs, CHUNK_GRAN*sizeof(PR_GRANULE_T));
 
   // ##########################################
   // ### Input management
@@ -862,7 +893,7 @@ int main(int argc, char **argv)
 		MemObj *m;
 		Config::GetInstance()->SelDev(j);
 		GPU_output_buffer.AddMemObj(m = new MemObj(b
-			.SetSize(maxGPUoutputBufferSize)
+			.SetSize(maxGPUoutputBufferSize / sizeof(int) * sizeof(memcd_get_output_t))
 			->SetOptions(MEMMAN_NONE)
 			->AllocDevPtr()
 			->AllocHostPtr(),
@@ -911,11 +942,18 @@ int main(int argc, char **argv)
 	malloc_or_die(CPUInputBuffer, size_of_CPU_input_buffer * 2); // good and bad
 	malloc_or_die(CPUoutputBuffer, currMaxCPUoutputBufferSize); // kinda big
 
+
+	printf(" >>> Preparing GPU input ...\n");
 	fill_GPU_input_buffers();
+	printf("\n Done!\n");
+	printf(" >>> Preparing CPU input ...\n");
 	fill_CPU_input_buffers();
+	printf("\n Done!\n");
+
+	printf(" >>> Input done!\n");
 	// ---------------------------------------------------------------------------
 
-	size_t nbSets = parsedData.nb_accounts;
+	size_t nbSets = parsedData.num_sets;
 	size_t nbWays = parsedData.num_ways;
 	accountsSize = nbSets*nbWays*sizeof(account_t);
 	// last one is to check if the set was changed or not
@@ -926,6 +964,7 @@ int main(int argc, char **argv)
 
 	// Setting the value size to be 32
 	sizePool += accountsSize * 7; // already have 4B missing 7*4B
+	sizePool += accountsSize * 2; // TS_CPU and TS_GPU
 
   HeTM_init((HeTM_init_s){
 // #if CPU_INV == 1
@@ -951,22 +990,24 @@ int main(int argc, char **argv)
 		.mempool_opts = MEMMAN_NONE
   });
 
+	Config::GetInstance()->SelDev(0);
 	MemObjBuilder b_memcd_global_ts;
 	MemObjBuilder b_CPU_memcd_global_ts;
 	MemObj *m_memcd_global_ts;
 	MemObj *m_CPU_memcd_global_ts = new MemObj(b_CPU_memcd_global_ts
-				.SetOptions(MEMMAN_NONE)
-				->SetSize(sizeof(unsigned))
-				->AllocHostPtr(), 0);
+		.SetOptions(MEMMAN_NONE)
+		->SetSize(sizeof(unsigned))
+		->AllocHostPtr(), 0);
 	memcd_global_ts.AddMemObj(m_memcd_global_ts = new MemObj(b_memcd_global_ts
-			.SetOptions(MEMMAN_NONE)
-			->SetSize(sizeof(unsigned))
-			->AllocDevPtr()
-			->SetHostPtr(m_CPU_memcd_global_ts->host),
-			/* for CPU only to work */0
-		));
+		.SetOptions(MEMMAN_NONE)
+		->SetSize(sizeof(unsigned))
+		->AllocDevPtr()
+		->SetHostPtr(m_CPU_memcd_global_ts->host),
+		/* for CPU only to work */0
+	));
 	for (int j = 1; j < nbGPUs; ++j)
 	{
+		Config::GetInstance()->SelDev(j);
 		memcd_global_ts.AddMemObj(m_memcd_global_ts = new MemObj(b_memcd_global_ts
 				.SetOptions(MEMMAN_NONE)
 				->SetSize(sizeof(unsigned))
@@ -979,14 +1020,11 @@ int main(int argc, char **argv)
 	malloc_or_die(memcd, nbGPUs);
 	for (int j = 0; j < nbGPUs; ++j)
 	{
+		Config::GetInstance()->SelDev(j);
 		memcd[j].nbSets = nbSets;
 		memcd[j].nbWays = nbWays;
 		memcd[j].globalTs = (unsigned*)memcd_global_ts.GetMemObj(j)->host; // TODO: multiGPU
 	}
-
-  // TODO:
-  parsedData.nb_threadsCPU = HeTM_gshared_data.nbCPUThreads;
-  parsedData.nb_threads    = HeTM_gshared_data.nbThreads;
 
 	// input manager will handle these
 	malloc_or_die(startInputPtr, 3);
@@ -1010,28 +1048,29 @@ int main(int argc, char **argv)
   jobWithCuda_exit(NULL); // Reset Cuda Device
 
   malloc_or_die(threads, parsedData.nb_threads);
-  
-	DEBUG_PRINT("Initializing GPU.\n");
 
 	// mallocs 4 arrays (accountsSize * NUMBER_WAYS * 4)
+	size_t sizeCache = nbSets*nbWays;
 	for (int j = 0; j < nbGPUs; ++j)
 	{
-		HeTM_alloc(j, (void**)&memcd[j].key, &gpuMempool, sizePool); // <K,V,TS,STATE>
-		memcd[j].extraKey = memcd[j].key + (memcd[j].nbSets*memcd[j].nbWays);
-		memcd[j].val      = memcd[j].extraKey + 3*(memcd[j].nbSets*memcd[j].nbWays);
-		memcd[j].extraVal = memcd[j].val + (memcd[j].nbSets*memcd[j].nbWays);
-		memcd[j].ts_CPU   = memcd[j].extraVal + 7*(memcd[j].nbSets*memcd[j].nbWays);
-		memcd[j].ts_GPU   = memcd[j].ts_CPU + (memcd[j].nbSets*memcd[j].nbWays);
-		memcd[j].state    = memcd[j].ts_GPU + (memcd[j].nbSets*memcd[j].nbWays);
-		memcd[j].setUsage = memcd[j].state + (memcd[j].nbSets*memcd[j].nbWays);
+		Config::GetInstance()->SelDev(j);
+		HeTM_alloc(j, (void**)&memcd[j].key, &gpuMempool[j], sizePool); // <K,V,TS,STATE>
 		memset(memcd[j].key, 0, sizePool);
+		memcd[j].extraKey = memcd[j].key + sizeCache;
+		memcd[j].val      = memcd[j].extraKey + 3*sizeCache;
+		memcd[j].extraVal = memcd[j].val + sizeCache;
+		memcd[j].ts_CPU   = memcd[j].extraVal + 7*sizeCache;
+		memcd[j].ts_GPU   = memcd[j].ts_CPU + sizeCache;
+		memcd[j].state    = memcd[j].ts_GPU + sizeCache;
+		memcd[j].setUsage = memcd[j].state + sizeCache;
 	}
 	cuda_t *cuda_st;
-	cuda_st = jobWithCuda_init(memcd[j].key, parsedData.nb_threadsCPU,
+	cuda_st = jobWithCuda_init((account_t**)gpuMempool, parsedData.nb_threadsCPU,
 		sizePool, parsedData.trans, 0, parsedData.GPUthreadNum, parsedData.GPUblockNum,
 		parsedData.hprob, parsedData.hmult);
 	for (int j = 0; j < nbGPUs; ++j)
 	{
+		Config::GetInstance()->SelDev(j);
 		jobWithCuda_initMemcd(cuda_st+j, parsedData.num_ways, parsedData.nb_accounts,
 			parsedData.set_percent, parsedData.shared_percent);
 		cuda_st->memcd_array_size = accountsSize;
@@ -1047,16 +1086,22 @@ int main(int argc, char **argv)
   parsedData.memcd = memcd;
 
   /* Init STM */
-  printf("Initializing STM\n");
+  printf("Warming up the STM ... \n");
 
 	/* POPULATE the cache */
-	int *gpu_buffer_cpu_ptr = (int*)GPU_input_buffer_good.GetMemObj()->host;
-	for (int i = 0; i < size_of_GPU_input_buffer/sizeof(int); ++i) {
-		cpu_SET_kernel_NOTX(memcd, &gpu_buffer_cpu_ptr[i], &gpu_buffer_cpu_ptr[i], 0);
+	for (int i = 0; i < 2*size_of_CPU_input_buffer/sizeof(int); ++i) {
+		cpu_SET_kernel_NOTX(memcd, &CPUInputBuffer[i], &CPUInputBuffer[i], 0);
 	}
-	gpu_buffer_cpu_ptr = (int*)GPU_input_buffer_bad.GetMemObj()->host;
-	for (int i = 0; i < size_of_GPU_input_buffer/sizeof(int); ++i) {
-		cpu_SET_kernel_NOTX(memcd, &gpu_buffer_cpu_ptr[i], &gpu_buffer_cpu_ptr[i], 0);
+	for (int j = 0; j < nbGPUs; ++j)
+  {
+		int *gpu_buffer_cpu_ptr = (int*)GPU_input_buffer_good.GetMemObj(j)->host;
+		for (int i = 0; i < (size_of_GPU_input_buffer/sizeof(int))*NB_OF_GPU_BUFFERS; ++i) {
+			cpu_SET_kernel_NOTX(memcd, &gpu_buffer_cpu_ptr[i], &gpu_buffer_cpu_ptr[i], 0);
+		}
+		gpu_buffer_cpu_ptr = (int*)GPU_input_buffer_bad.GetMemObj(j)->host;
+		for (int i = 0; i < (size_of_GPU_input_buffer/sizeof(int))*NB_OF_GPU_BUFFERS; ++i) {
+			cpu_SET_kernel_NOTX(memcd, &gpu_buffer_cpu_ptr[i], &gpu_buffer_cpu_ptr[i], 0);
+		}
 	}
 
 	// for (int i = 0; i < 32*4; ++i) {
@@ -1065,7 +1110,8 @@ int main(int argc, char **argv)
 
 	for (int j = 0; j < nbGPUs; ++j)
 	{
-		CUDA_CPY_TO_DEV(gpuMempool, memcd[j].key, sizePool);
+		Config::GetInstance()->SelDev(j);
+		CUDA_CPY_TO_DEV(gpuMempool[j], memcd[j].key, sizePool);
 	}
 	// printf(" >>>>>>>>>>>>>>> PASSOU AQUI!!!\n");
 	// call_cuda_check_memcd((int*)gpuMempool, accountsSize/sizeof(int));
@@ -1076,7 +1122,7 @@ int main(int argc, char **argv)
   // ###########################################################################
   // ### Start iterations ######################################################
   // ###########################################################################
-  for(j = 0; j < parsedData.iter; j++) { // Loop for testing purposes
+  for(int j = 0; j < parsedData.iter; j++) { // Loop for testing purposes
     //Clear flags
 		HeTM_set_is_stop(0);
     global_fix = 0;
@@ -1085,7 +1131,7 @@ int main(int argc, char **argv)
     // ### create threads
     // ##############################################
 		printf(" >>> Creating %d threads\n", parsedData.nb_threads);
-    for (i = 0; i < parsedData.nb_threads; i++) {
+    for (i = 0; i < parsedData.nb_threads+1; i++) {
       /* SET CPU AFFINITY */
       /* INIT DATA STRUCTURE */
       // remove last iter status
@@ -1103,13 +1149,20 @@ int main(int argc, char **argv)
     HeTM_after_gpu_finish(afterGPU);
     HeTM_before_cpu_start(beforeCPU);
     HeTM_after_cpu_finish(afterCPU);
-    HeTM_start(test, test_cuda, data);
 		HeTM_after_batch(after_batch);
 		HeTM_before_batch(before_batch);
 		HeTM_after_kernel(after_kernel);
 		HeTM_before_kernel(before_kernel);
+    HeTM_start(test, test_cuda, data);
 
 		HeTM_choose_policy(choose_policy);
+
+    printf("Warming up the GPUs...\n");
+
+#if HETM_GPU_EN == 1
+		while (! __atomic_load_n(&HeTM_gshared_data.GPUisNowWarm, __ATOMIC_ACQUIRE));
+#endif
+
 
     printf("STARTING...(Run %d)\n", j);
 
@@ -1123,11 +1176,15 @@ int main(int argc, char **argv)
       sigemptyset(&block_set);
       sigsuspend(&block_set);
     }
-		HeTM_set_is_stop(1);
-		__sync_synchronize();
+		HeTM_request_stop();
+		while (!HeTM_is_stop());
 
     TIMER_READ(parsedData.end);
     printf("STOPPING...\n");
+
+#if HETM_GPU_EN == 1
+		while(!__atomic_load_n(&HeTM_gshared_data.GPUisCompleted, __ATOMIC_ACQUIRE));
+#endif
 
     /* Wait for thread completion */
     HeTM_join_CPU_threads();
@@ -1169,9 +1226,8 @@ int main(int argc, char **argv)
 	printf("CPU_start=%9li CPU_end=%9li\n", startInputPtr[CPU_QUEUE], endInputPtr[CPU_QUEUE]);
 	printf("GPU_start=%9li GPU_end=%9li\n", startInputPtr[GPU_QUEUE], endInputPtr[GPU_QUEUE]);
 	printf("SHARED_start=%9li SHARED_end=%9li\n", startInputPtr[SHARED_QUEUE], endInputPtr[SHARED_QUEUE]);
-	printf("nbOfGPUSetKernels=%i\n", nbOfGPUSetKernels);
-
-	printf("nbGPUStealBatches=%9i nbCPUStealBatches=%9i\n", nbGPUStealBatches, nbCPUStealBatches);
+	printf("nbOfGPUSetKernels=%9i\n", nbOfGPUSetKernels);
+	printf("nbGPUStealBatches=%9i\nnbCPUStealBatches=%9i\n", nbGPUStealBatches, nbCPUStealBatches);
 	printf("timeDtD = %f\n", HeTM_stats_data.timeDtD);
 	HeTM_destroy();
 

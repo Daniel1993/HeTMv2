@@ -252,6 +252,7 @@ void TestBMAP::TestRWDifferentPositions()
 
     // copies the merged dataset
     waitNextBatch(1);
+    waitGPUdataset(NULL);
     doGPUStateReset();
 
     Config::GetInstance()->SelDev(0);
@@ -440,6 +441,13 @@ void TestBMAP::TestWrtDifferentReadSamePositions()
 
     HeTM_gshared_data.batchCount = 11;
 
+    Config::GetInstance()->SelDev(0);
+    HeTM_gpu_wset.GetMemObj(0)->ZeroDev();
+    HeTM_gpu_rset.GetMemObj(0)->ZeroDev();
+    Config::GetInstance()->SelDev(1);
+    HeTM_gpu_wset.GetMemObj(1)->ZeroDev();
+    HeTM_gpu_rset.GetMemObj(1)->ZeroDev();
+
     PR_curr_dev = 0;
     argsDev0->nbPos = size_rwset;
     argsDev0->base = _gpu0;
@@ -467,20 +475,34 @@ void TestBMAP::TestWrtDifferentReadSamePositions()
     // inspect write set of GPU0
     Config::GetInstance()->SelDev(0);
     MemObj *m_gpu0_wrtset = HeTM_gpu_wset.GetMemObj(0);
+    MemObj *m_gpu0_rdset = HeTM_gpu_rset.GetMemObj(0);
     m_gpu0_wrtset->CpyDtH();
+    m_gpu0_rdset->CpyDtH();
     unsigned char *gpu0_wrtset = (unsigned char *)m_gpu0_wrtset->host;
+    unsigned char *gpu0_rdset = (unsigned char *)m_gpu0_rdset->host;
     cudaDeviceSynchronize();
-    printf("[GPU0] wrote in pos %i = %i\n", 2, gpu0_wrtset[2]);
-    printf("[GPU0] wrote in pos %i = %i\n", 4, gpu0_wrtset[4]);
+    printf("[GPU0] read  in pos %i = %x\n", 0, (unsigned)gpu0_rdset[0]);
+    printf("[GPU0] wrote in pos %i = %x\n", 2, (unsigned)gpu0_wrtset[2]);
 
     // inspect write set of GPU1
     Config::GetInstance()->SelDev(1);
     MemObj *m_gpu1_wrtset = HeTM_gpu_wset.GetMemObj(1);
+    MemObj *m_gpu1_rdset = HeTM_gpu_rset.GetMemObj(1);
     m_gpu1_wrtset->CpyDtH();
+    m_gpu1_rdset->CpyDtH();
     unsigned char *gpu1_wrtset = (unsigned char *)m_gpu1_wrtset->host;
+    unsigned char *gpu1_rdset = (unsigned char *)m_gpu1_rdset->host;
     cudaDeviceSynchronize();
-    printf("[GPU1] wrote in pos %i = %i\n", 2, gpu1_wrtset[2]);
-    printf("[GPU1] wrote in pos %i = %i\n", 4, gpu1_wrtset[4]);
+    printf("[GPU1] read  in pos %i = %x\n", 0, (unsigned)gpu1_rdset[0]);
+    printf("[GPU1] wrote in pos %i = %x\n", 3, (unsigned)gpu1_wrtset[3]);
+
+    // DEBUG
+    Config::GetInstance()->SelDev(0);
+    CUDA_CPY_TO_HOST(cpu_buffer_of_gpu_mempool[0], mempool_base_addr_gpu[0], sizeof(granule_t)*MEMPOOL_SIZE);
+    cudaDeviceSynchronize();
+    Config::GetInstance()->SelDev(1);
+    CUDA_CPY_TO_HOST(cpu_buffer_of_gpu_mempool[1], mempool_base_addr_gpu[1], sizeof(granule_t)*MEMPOOL_SIZE);
+    cudaDeviceSynchronize();
 
     // do the comparison with the CPU
     cpyCPUwrtsetToGPU(1);
@@ -490,7 +512,15 @@ void TestBMAP::TestWrtDifferentReadSamePositions()
     mergeMatricesAndRunFVS(1);
 
     waitNextBatch(1);
+    waitGPUdataset(NULL);
     doGPUStateReset();
+
+    Config::GetInstance()->SelDev(0);
+    CUDA_CPY_TO_HOST(cpu_buffer_of_gpu_mempool[0], mempool_base_addr_gpu[0], sizeof(granule_t)*MEMPOOL_SIZE);
+    cudaDeviceSynchronize();
+    Config::GetInstance()->SelDev(1);
+    CUDA_CPY_TO_HOST(cpu_buffer_of_gpu_mempool[1], mempool_base_addr_gpu[1], sizeof(granule_t)*MEMPOOL_SIZE);
+    cudaDeviceSynchronize();
 
     CPPUNIT_ASSERT(mempool_base_addr_cpu[0][1] == 3 && "CPU id not in CPU mempool");
     CPPUNIT_ASSERT(mempool_base_addr_cpu[0][2] == 1 && "GPU0 id not in CPU mempool");
@@ -607,6 +637,7 @@ void TestBMAP::TestAllConflict()
     mergeMatricesAndRunFVS(1);
 
     waitNextBatch(1);
+    waitGPUdataset(NULL);
     doGPUStateReset();
 
     // TODO: what is the result if all conflict? who wins?
@@ -711,7 +742,15 @@ void TestBMAP::TestGPUsConflict()
     mergeMatricesAndRunFVS(1);
 
     waitNextBatch(1);
+    waitGPUdataset(NULL);
     doGPUStateReset();
+
+    Config::GetInstance()->SelDev(0);
+    CUDA_CPY_TO_HOST(cpu_buffer_of_gpu_mempool[0], mempool_base_addr_gpu[0], sizeof(granule_t)*MEMPOOL_SIZE);
+    cudaDeviceSynchronize();
+    Config::GetInstance()->SelDev(1);
+    CUDA_CPY_TO_HOST(cpu_buffer_of_gpu_mempool[1], mempool_base_addr_gpu[1], sizeof(granule_t)*MEMPOOL_SIZE);
+    cudaDeviceSynchronize();
 
     // TODO: what is the result if all conflict? who wins?
     CPPUNIT_ASSERT(mempool_base_addr_cpu[0][1] == 3 && "CPU id not in CPU mempool");
@@ -812,7 +851,13 @@ void TestBMAP::TestGPUsConflictNotFirstChunk()
     mergeMatricesAndRunFVS(1);
 
     waitNextBatch(1);
+    waitGPUdataset(NULL);
     doGPUStateReset();
+
+    Config::GetInstance()->SelDev(0);
+    cudaDeviceSynchronize();
+    Config::GetInstance()->SelDev(1);
+    cudaDeviceSynchronize();
 
     // TODO: what is the result if all conflict? who wins?
     CPPUNIT_ASSERT(mempool_base_addr_cpu[0][1] == 3 && "CPU id not in CPU mempool");
@@ -914,6 +959,7 @@ void TestBMAP::TestDisjointChunkWrites()
     mergeMatricesAndRunFVS(1);
 
     waitNextBatch(1);
+    waitGPUdataset(NULL);
     doGPUStateReset();
 
     Config::GetInstance()->SelDev(0);

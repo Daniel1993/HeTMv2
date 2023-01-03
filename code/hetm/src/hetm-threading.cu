@@ -85,6 +85,7 @@ int HeTM_start(HeTM_callback CPUclbk, HeTM_callback GPUclbk, void *args)
   HETM_DEB_THREADING("Signal threads to start");
   barrier_cross(wait_callback); // all start sync
   isCreated = 1;
+  __atomic_store_n(&HeTM_gshared_data.GPUisCanStartNow, 1, __ATOMIC_RELEASE);
   return 0;
 }
 

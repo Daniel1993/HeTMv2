@@ -54,7 +54,7 @@ extern memman::MemObjOnDev HeTM_cpu_rset_cache;
 extern memman::MemObjOnDev HeTM_cpu_wset_cache;
 
 extern memman::MemObjOnDev HeTM_gpu_confl_mat;
-extern memman::MemObjOnDev HeTM_gpu_confl_mat_merge;
+extern memman::MemObjOnDev HeTM_cpu_final_mat;
 
 extern memman::MemObjOnDev HeTM_curand_state;
 
@@ -143,6 +143,7 @@ void checkIsExit();
 void notifyCPUNextBatch();
 void offloadResetGPUState(void*);
 void setCountAfterBatch();
+void cpyBMAPtoGPU(int);
 
 // TODO: this is not defined here
 // #ifndef PR_globalKernelArgs
@@ -155,6 +156,11 @@ pr_tx_args_s *getPrSTMmetaData(int devId);
 void mergeMatricesAndRunFVS(int nonBlock);
 // --------------------------
 // --------------------------------
+
+#ifndef DISABLE_EARLY_VALIDATION
+void triggerEarlyValidation();
+int resultFromEarlyValidation();
+#endif
 
 // ----------------------- TODO: test
 void hetm_memcpyDeviceToCPU(int devId, HeTM_thread_s *threadData);

@@ -1,0 +1,48 @@
+
+./compile.sh debug          \
+  CMP_TYPE=COMPRESSED     \
+  BANK_PART=7             \
+  PR_MAX_RWSET_SIZE=400   \
+  USE_TSX_IMPL=0          \
+  PROFILE=1 -j 14         \
+  BENCH=MEMCD             \
+  INST_CPU=1              \
+  DISABLE_RS=0            \
+  DISABLE_WS=0            \
+  BMAP_ENC_1BIT=1         \
+  CPU_STEAL_ONLY_GETS=0   \
+  DISABLE_NON_BLOCKING=0  \
+  DISABLE_EARLY_VALIDATION=0 \
+  LOG_SIZE=4096           \
+  STM_LOG_BUFFER_SIZE=256 \
+  HETM_GPU_EN=1           \
+  HETM_CPU_EN=1           \
+  BMAP_GRAN_BITS=13       \
+  HETM_NB_DEVICES=1 >/dev/null
+
+./memcd    \
+  -n 1     \
+  -b 1     \
+  -a 100   \
+  CONFL_SPACE=100 \
+  -d 30000 \
+  -N 0.1   \
+  -X 0.1   \
+  -l 1     \
+  GPU_STEAL_PROB=1.0 \
+  -x 128   \
+  -T 1     \
+  -S 0     \
+  -G 0     \
+  -C 0     \
+  -f file.txt \
+  -C "CPU_input_2000000_099_1310720.txt" \
+  -G "GPU_input_2000000_099_25165824.txt" \
+  CPU_BACKOFF=0 \
+  GPU_BACKOFF=0 \
+  CPU_STEAL_PROB=0.0 \
+  NB_CONFL_GPU_BUFFER=10
+
+./memcd -n 1 -b 1 GPU_STEAL_PROB=0.5 CPU_STEAL_PROB=0.0 -a 100 -d 30000 -N 0.1 CONFL_SPACE=1000 NB_CONFL_GPU_BUFFER=10 -X 0.1 -l 8 -x 128 -T 1 -S 0 -G 0 -C 0 -f file.txt -C "CPU_input_2000000_099_1310720.txt" -G "GPU_input_2000000_099_25165824.txt" CPU_BACKOFF=0 GPU_BACKOFF=0 
+
+gdb --args ./memcd -n 1 -b 1 GPU_STEAL_PROB=0.5 CPU_STEAL_PROB=0.0 -a 100 -d 300000 -N 0.1 CONFL_SPACE=1000 NB_CONFL_GPU_BUFFER=10 -X 0.1 -l 1 -x 128 -T 1 -S 0 -G 0 -C 0 -f file.txt -C "CPU_input_2000000_099_1310720.txt" -G "GPU_input_2000000_099_25165824.txt" CPU_BACKOFF=0 GPU_BACKOFF=0

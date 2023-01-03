@@ -24,17 +24,18 @@
 #include "hetm.cuh"
 
 typedef struct HeTM_GPU_log_ {
-	int devId;
 	void *bmap_rset_devptr;
 	void *bmap_wset_devptr;
 	void *bmap_wset_cache_devptr;
 	void *bmap_rset_cache_devptr;
-	long *state; /* TODO: this is benchmark specific */
 	void *devMemPoolBasePtr;
 	void *hostMemPoolBasePtr;
+	long *state; /* TODO: this is benchmark specific */
+	long batchCount;
+	size_t sizeMemPool;
+	int devId;
 	// memman_bmap_s *bmap;
 	// memman_bmap_s *bmapBackup;
-	long batchCount;
 	int isGPUOnly;
 } HeTM_GPU_log_s;
 
@@ -92,7 +93,9 @@ void hetm_impl_pr_clbk_after_run_ext(pr_tx_args_s *args);
 #endif /* HETM_REDUCED_RS */
 
 #define  SET_ON_WS_BMAP(_addr, _GPU_log) ({ \
-	unsigned long pos = ((uintptr_t)(_addr) - (uintptr_t)((_GPU_log)->devMemPoolBasePtr)) >> (PR_LOCK_GRAN_BITS+HETM_REDUCED_RS); \
+	uintptr_t _a = (uintptr_t)(_addr); \
+	uintptr_t _b = (uintptr_t)((_GPU_log)->devMemPoolBasePtr); \
+	unsigned long pos = (_a - _b) >> (PR_LOCK_GRAN_BITS+HETM_REDUCED_RS); \
 	unsigned long posCache = pos >> BMAP_GRAN_BITS; \
 	/* printf("set on WRITE SET pos %li posCache %li in %p\n", pos, posCache, (_GPU_log)->bmap_wset_devptr); */ \
 	SET_ON_WS_BMAP_AUX(pos, _GPU_log); \
@@ -100,7 +103,9 @@ void hetm_impl_pr_clbk_after_run_ext(pr_tx_args_s *args);
 }) //
 
 #define SET_ON_RS_BMAP(_addr, _GPU_log) ({ \
-	unsigned long pos = ((uintptr_t)(_addr) - (uintptr_t)((_GPU_log)->devMemPoolBasePtr)) >> (PR_LOCK_GRAN_BITS+HETM_REDUCED_RS); \
+	uintptr_t _a = (uintptr_t)(_addr); \
+	uintptr_t _b = (uintptr_t)((_GPU_log)->devMemPoolBasePtr); \
+	unsigned long pos = (_a - _b) >> (PR_LOCK_GRAN_BITS+HETM_REDUCED_RS); \
 	unsigned long posCache = pos >> BMAP_GRAN_BITS; \
 	/* printf("set on READ SET pos %li posCache %li in %p\n", pos, posCache, (_GPU_log)->bmap_rset_devptr); */ \
 	SET_ON_RS_BMAP_AUX(pos, _GPU_log); \
@@ -121,23 +126,22 @@ void hetm_impl_pr_clbk_after_run_ext(pr_tx_args_s *args);
 //
 
 #ifdef HETM_DISABLE_RS
-#define PR_AFTER_VAL_LOCKS_GATHER_READ_SET(i) /* empty */
+#define PR_AFTER_VAL_LOCKS_GATHER_READ_SET(_i, _GPU_log) /* empty */
 #else /* !HETM_DISABLE_RS */
-#define PR_AFTER_VAL_LOCKS_GATHER_READ_SET(_i) \
+#define PR_AFTER_VAL_LOCKS_GATHER_READ_SET(_i, _GPU_log) \
 	for (_i = 0; _i < args->rset.size; _i++) { \
-		SET_ON_RS_BMAP(args->rset.addrs[_i], GPU_log); \
+		SET_ON_RS_BMAP(args->rset.addrs[_i], _GPU_log); \
 	} \
 //
 #endif /* HETM_DISABLE_RS */
 
 #ifdef HETM_DISABLE_WS
-#define PR_AFTER_VAL_LOCKS_GATHER_WRITE_SET(i) /* empty */
+#define PR_AFTER_VAL_LOCKS_GATHER_WRITE_SET(_i, _GPU_log) /* empty */
 #else /* !HETM_DISABLE_WS	 */
-#define PR_AFTER_VAL_LOCKS_GATHER_WRITE_SET(_i) \
+#define PR_AFTER_VAL_LOCKS_GATHER_WRITE_SET(_i, _GPU_log) \
 	for (_i = 0; _i < args->wset.size; _i++) { \
 		/* this is avoided through a memcpy D->D after batch */ \
 		/* memman_access_addr_dev(GPU_log->bmap, args->wset.addrs[_i], GPU_log->batchCount); */ /* TODO */ \
-		SET_ON_RS_BMAP(args->wset.addrs[_i], GPU_log); \
 		SET_ON_WS_BMAP(args->wset.addrs[_i], GPU_log); \
 	} \
 //

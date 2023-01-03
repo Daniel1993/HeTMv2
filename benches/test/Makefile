@@ -1,6 +1,6 @@
 ### TODO: create include files for pr-stm, cuda-utils, tsx and tiny
 
-CURR_DIR      ?= ~/projs/HeTM_V1/test
+CURR_DIR      ?= ~/projs/HeTM_V2/test
 TINY_ROOT     ?= $(CURR_DIR)/../tinyMOD
 TSX_ROOT      ?= $(CURR_DIR)/../tsxMOD
 HETM_ROOT     ?= $(CURR_DIR)/../hetm

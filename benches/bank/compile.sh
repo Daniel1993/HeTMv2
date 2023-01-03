@@ -12,6 +12,7 @@ PR_MAX_RWSET_SIZE=400
 BANK_PART=1
 CPU_PART=0.50
 GPU_PART=0.50
+DISABLE_EARLY_VALIDATION=0
 P_INTERSECT=0.00
 PROFILE=1
 BMAP_GRAN_BITS=13
@@ -61,6 +62,7 @@ make                                                                \
 	CPU_PART=$CPU_PART                                                \
 	P_INTERSECT=$P_INTERSECT                                          \
 	PROFILE=$PROFILE                                                  \
+	DISABLE_EARLY_VALIDATION=$DISABLE_EARLY_VALIDATION                \
 	BANK_INTRA_CONFL=$BANK_INTRA_CONFL                                \
 	LOG_SIZE=4096                                                     \
 	STM_LOG_BUFFER_SIZE=256                                           \
@@ -81,6 +83,7 @@ make                                                                \
 	HETM_GPU_EN=$HETM_GPU_EN                                          \
 	DISABLE_RS=$DISABLE_RS                                            \
 	DISABLE_WS=$DISABLE_WS                                            \
+	DISABLE_EARLY_VALIDATION=$DISABLE_EARLY_VALIDATION                \
 	INST_CPU=$INST_CPU                                                \
 	USE_TSX_IMPL=$USE_TSX_IMPL                                        \
 	PR_MAX_RWSET_SIZE=$PR_MAX_RWSET_SIZE                              \
@@ -109,6 +112,7 @@ echo -e "\
 	HETM_CPU_EN=$HETM_CPU_EN                                          \n\
 	HETM_GPU_EN=$HETM_GPU_EN                                          \n\
 	USE_TSX_IMPL=$USE_TSX_IMPL                                        \n\
+	DISABLE_EARLY_VALIDATION=$DISABLE_EARLY_VALIDATION                \n\
 	PR_MAX_RWSET_SIZE=$PR_MAX_RWSET_SIZE                              \n\
 	BANK_PART=$BANK_PART                                              \n\
 	GPU_PART=$GPU_PART                                                \n\

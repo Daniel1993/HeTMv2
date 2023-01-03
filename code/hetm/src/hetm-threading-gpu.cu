@@ -81,13 +81,13 @@ void initGPUPeerCpy()
     }
   }
   // TODO: #ifdef taz-gpu machine (4x A100) then disable some links
-  CUDA_CHECK_ERROR(cudaSetDevice(0), "");
-  CUDA_CHECK_ERROR(cudaDeviceDisablePeerAccess(2), "");
-  CUDA_CHECK_ERROR(cudaDeviceDisablePeerAccess(3), "");
-  CUDA_CHECK_ERROR(cudaSetDevice(2), "");
-  CUDA_CHECK_ERROR(cudaDeviceDisablePeerAccess(0), "");
-  CUDA_CHECK_ERROR(cudaSetDevice(3), "");
-  CUDA_CHECK_ERROR(cudaDeviceDisablePeerAccess(0), "");
+  // CUDA_CHECK_ERROR(cudaSetDevice(0), "");
+  // CUDA_CHECK_ERROR(cudaDeviceDisablePeerAccess(2), "");
+  // CUDA_CHECK_ERROR(cudaDeviceDisablePeerAccess(3), "");
+  // CUDA_CHECK_ERROR(cudaSetDevice(2), "");
+  // CUDA_CHECK_ERROR(cudaDeviceDisablePeerAccess(0), "");
+  // CUDA_CHECK_ERROR(cudaSetDevice(3), "");
+  // CUDA_CHECK_ERROR(cudaDeviceDisablePeerAccess(0), "");
 }
 
 void destroyGPUPeerCpy()
@@ -239,7 +239,8 @@ pr_tx_args_s *getPrSTMmetaData(int devId)
 void waitGPUBatchEnd()
 {
   int j;
-  for (j = 0; j < Config::GetInstance()->NbGPUs(); ++j)
+  int nbGPUs = Config::GetInstance()->NbGPUs();
+  for (j = 0; j < nbGPUs; ++j)
   {
     Config::GetInstance()->SelDev(j);
     PR_curr_dev = j;
@@ -254,10 +255,71 @@ void waitGPUBatchEnd()
   // Removed deviceSync from here
 }
 
+#ifndef DISABLE_EARLY_VALIDATION
+void triggerEarlyValidation()
+{
+  int j;
+  int nGPUs = Config::GetInstance()->NbGPUs();
+  
+  startGPUtoGPUconflictCompare();
+  for (j = 0; j < nGPUs; j++)
+    cpyBMAPtoGPU(j);
+}
+
+static int
+checkAnyConflictInMatrices()
+{
+  int nGPUs = Config::GetInstance()->NbGPUs();
+
+  for (int j = 0; j < nGPUs; ++j)
+    { HeTM_gpu_confl_mat.GetMemObj(j)->CpyDtH(HeTM_memStream[j]); }
+  for (int j = 0; j < nGPUs; ++j)
+    { CUDA_CHECK_ERROR(cudaStreamSynchronize((cudaStream_t)HeTM_memStream[j]), ""); }
+
+  for (int j = 0; j < (nGPUs+1); ++j)
+  {
+    for (int i = 0; i < (nGPUs+1); ++i) // CPU validation is on GPUs
+    {
+      if (i == j) continue;
+      int coord_l = (nGPUs+1)*i + j; // row
+      int coord_c = (nGPUs+1)*j + i; // column
+      unsigned char GPUval;
+      if (j == nGPUs)
+        GPUval = __atomic_load_n(&(HeTM_shared_data[i].mat_confl_GPU_hostptr[coord_c]), __ATOMIC_ACQUIRE);
+      else if (i == nGPUs)
+        GPUval = __atomic_load_n(&(HeTM_shared_data[j].mat_confl_GPU_hostptr[coord_c]), __ATOMIC_ACQUIRE);
+      else
+        GPUval = __atomic_load_n(&(HeTM_shared_data[i].mat_confl_GPU_hostptr[coord_l]), __ATOMIC_ACQUIRE);
+
+      if (GPUval)
+        return 1;
+    }
+  }
+  return 0;
+}
+
+int resultFromEarlyValidation()
+{
+  int nbGPUs = Config::GetInstance()->NbGPUs();
+  // for (int j = 0; j < nbGPUs; ++j)
+  // { 
+  //   Config::GetInstance()->SelDev(j);
+  //   CUDA_CHECK_ERROR(cudaStreamSynchronize((cudaStream_t)HeTM_memStream[j]), "");
+  //   CUDA_CHECK_ERROR(cudaStreamSynchronize((cudaStream_t)HeTM_memStream2[j]), "");
+  // }
+  return checkAnyConflictInMatrices();
+}
+#endif
+
+static TIMER_T cmp_ts1;
+static TIMER_T cmp_ts2;
+
 void notifyBatchIsDone()
 {
   int j;
   int nGPUs = Config::GetInstance()->NbGPUs();
+
+  TIMER_READ(cmp_ts1); 
 
   uint64_t *cpuRSet_hostptr = (uint64_t*)HeTM_cpu_rset.GetMemObj(0)->host;
   uint64_t *cpuWSet_hostptr = (uint64_t*)HeTM_cpu_wset.GetMemObj(0)->host;
@@ -283,7 +345,10 @@ void notifyBatchIsDone()
 
   // wait the previous copies
   for (j = 0; j < nGPUs; j++)
+  {
+    Config::GetInstance()->SelDev(j);
     CUDA_CHECK_ERROR(cudaStreamSynchronize((cudaStream_t)HeTM_memStream2[j]), "");
+  }
   
   for (j = 0; j < nGPUs; j++)
   {
@@ -314,6 +379,9 @@ void waitCPUlogValidation(int nonBlock)
       < HeTM_gshared_data.nbCPUThreads && !HeTM_is_stop()
     );
   }
+
+  TIMER_READ(cmp_ts2);
+  HeTM_stats_data.totalTimeCmp += TIMER_DIFF_SECONDS(cmp_ts1, cmp_ts2);
 }
 
 void syncGPUtoCPUbarrier(int nonBlock)
@@ -422,6 +490,11 @@ static void mergeAllMatrices()
 {
   int nGPUs = Config::GetInstance()->NbGPUs();
 
+  for (int j = 0; j < nGPUs; ++j)
+    { HeTM_gpu_confl_mat.GetMemObj(j)->CpyDtH(HeTM_memStream[j]); }
+  for (int j = 0; j < nGPUs; ++j)
+    { CUDA_CHECK_ERROR(cudaStreamSynchronize((cudaStream_t)HeTM_memStream[j]), ""); }
+
   for (int j = 0; j < (nGPUs+1); ++j)
   {
     for (int i = 0; i < (nGPUs+1); ++i) // CPU validation is on GPUs
@@ -432,15 +505,16 @@ static void mergeAllMatrices()
       int coord;
       unsigned char GPUval;
       if (j == nGPUs)
-        GPUval = __atomic_load_n(&(HeTM_shared_data[i].mat_confl_GPU_unif[coord = coord_c]), __ATOMIC_ACQUIRE);
+        GPUval = __atomic_load_n(&(HeTM_shared_data[i].mat_confl_GPU_hostptr[coord = coord_c]), __ATOMIC_ACQUIRE);
       else if (i == nGPUs)
-        GPUval = __atomic_load_n(&(HeTM_shared_data[j].mat_confl_GPU_unif[coord = coord_c]), __ATOMIC_ACQUIRE);
+        GPUval = __atomic_load_n(&(HeTM_shared_data[j].mat_confl_GPU_hostptr[coord = coord_c]), __ATOMIC_ACQUIRE);
       else
-        GPUval = __atomic_load_n(&(HeTM_shared_data[i].mat_confl_GPU_unif[coord = coord_l]), __ATOMIC_ACQUIRE);
-      HeTM_gshared_data.mat_confl_CPU_unif[coord] |= GPUval;
-      // printf("mergeAllMatrices[%i][%i] = %i\n", i, j, (int)HeTM_gshared_data.mat_confl_CPU_unif[coord_l]);
+        GPUval = __atomic_load_n(&(HeTM_shared_data[i].mat_confl_GPU_hostptr[coord = coord_l]), __ATOMIC_ACQUIRE);
+      HeTM_gshared_data.mat_confl_CPU_final[coord] |= GPUval;
+      // printf("mergeAllMatrices[%i][%i] = %i\n", i, j, (int)HeTM_gshared_data.mat_confl_CPU_final[coord_l]);
     }
   }
+  return; // GDB breakpoint
 }
 
 #ifdef HETM_DEB
@@ -449,13 +523,14 @@ static void printMatrixPerGPU()
   int nGPUs = Config::GetInstance()->NbGPUs();
 
   HETM_DEB_THRD_GPU("\n Conflict matrices:");
-  for (int j = 0; j < nGPUs+1; ++j) {
+  // for (int j = 0; j < nGPUs+1; ++j) {
+    int j=nGPUs;
     if (j == nGPUs) {
       printf("       >>> CPU  \n   \\ ");
     }
-    else {
-      printf("       >>> GPU %i \n   \\ ", j);
-    }
+    // else {
+    //   printf("       >>> GPU %i \n   \\ ", j);
+    // }
     for (int k = 0; k < nGPUs+1; ++k) {
       if (k == nGPUs) {
         printf(" CPU ");
@@ -471,19 +546,19 @@ static void printMatrixPerGPU()
       {
         for (int l = 0; l < nGPUs+1; ++l) {
           int coord1 = (nGPUs+1)*k + l;
-          printf("   %i ", (int)HeTM_gshared_data.mat_confl_CPU_unif[coord1]);
+          printf("   %i ", (int)HeTM_gshared_data.mat_confl_CPU_final[coord1]);
         }
       }
       else 
       {
         for (int l = 0; l < nGPUs+1; ++l) {
           int coord1 = (nGPUs+1)*k + l;
-          printf("   %i ", (int)HeTM_shared_data[j].mat_confl_GPU_unif[coord1]);
+          printf("   %i ", (int)HeTM_shared_data[j].mat_confl_GPU_hostptr[coord1]);
         }
       }
     }
     printf("\n");
-  }
+  // }
   printf("\n");
 }
 #endif
@@ -649,7 +724,7 @@ mergeMatricesAndRunFVS(
 
   // Get if any conflicts (compute feedback vertex set)
   graph G = fromSquareMat(nbGPUs+1,
-    (unsigned char*)HeTM_gshared_data.mat_confl_CPU_unif);
+    (unsigned char*)HeTM_gshared_data.mat_confl_CPU_final);
   BB_reset(G);
 
   // set weights here
@@ -662,7 +737,7 @@ mergeMatricesAndRunFVS(
   } */
 
   for (int i = 0; i < nbGPUs+1; i++)
-    HeTM_gshared_data.dev_weights[i] = lastRoundTXs[i];
+    HeTM_gshared_data.dev_weights[i] = (unsigned long)(lastRoundTXs[i]+1);
   BB_setWeights(HeTM_gshared_data.dev_weights);
 
   BB_run();
@@ -686,20 +761,28 @@ void accumulateStatistics()
   // WAIT_ON_FLAG(isGetStatsDone); // TODO
   int anyAbort = 0;
   int nGPUs = Config::GetInstance()->NbGPUs();
+  int *sol, *toRemove, *p;
 
   if (HeTM_gshared_data.isCPUEnabled && HeTM_gshared_data.isGPUEnabled)
   {
-    int *sol = BB_getBestSolution();
-    int *toRemove = BB_getFVS();
     const int CPUid = nGPUs;
 
-    int *p = sol;
+    sol = BB_getBestSolution();
+    toRemove = BB_getFVS();
+    p = sol;
+
     while (*p != -1)
     {
       if (*p == CPUid)
+      {
+        printf("committed CPU: %li ", lastRoundTXs[*p]);
         HeTM_stats_data.nbCommittedTxsCPU += lastRoundTXs[*p];
+      }
       else // TODO: transform this stat in an array
+      {
+        printf("committed GPU%i: %li ", *p, lastRoundTXs[*p]);
         HeTM_stats_data.nbCommittedTxsGPU += lastRoundTXs[*p];
+      }
       p++;
     }
 
@@ -708,17 +791,28 @@ void accumulateStatistics()
     {
       anyAbort = 1;
       if (*p == CPUid)
+      {
+        printf("dropped CPU: %li ", lastRoundTXs[*p]);
         HeTM_stats_data.nbDroppedTxsCPU += lastRoundTXs[*p];
+      }
       else // TODO: transform this stat in an array
+      {
+        printf("dropped GPU%i: %li ", *p, lastRoundTXs[*p]);
         HeTM_stats_data.nbDroppedTxsGPU += lastRoundTXs[*p];
+      }
       p++;
     }
   }
   else
   {
     for (int j = 0; j < nGPUs; ++j)
+    {
+      printf("committed GPU%i: %li ", j, lastRoundTXs[j]);
       HeTM_stats_data.nbCommittedTxsGPU += lastRoundTXs[j];
+    }
   }
+  printf("\n  --- tot CPU: %li ", HeTM_stats_data.nbCommittedTxsCPU);
+  printf("tot GPUs: %li \n", HeTM_stats_data.nbCommittedTxsGPU);
 
   HeTM_stats_data.nbBatches++;
   if (anyAbort) {
@@ -760,7 +854,7 @@ void syncGPUdataset(void *args)
   // printf("conf mat:\n");
   // for (int j = 0; j < HETM_NB_DEVICES+1; ++j) {
   //   for (int k = 0; k < HETM_NB_DEVICES+1; ++k) {
-  //     printf("%d", (int) HeTM_gshared_data.mat_confl_CPU_unif[(HETM_NB_DEVICES+1)*j+k]);
+  //     printf("%d", (int) HeTM_gshared_data.mat_confl_CPU_final[(HETM_NB_DEVICES+1)*j+k]);
   //   }
   //   printf("\n");
   // }
@@ -786,6 +880,8 @@ void waitGPUdataset(void *args)
   // CUDA_EVENT_ELAPSED_TIME(&threadData->timeCpyDataset, threadData->cpyDatasetStartEvent,
   //   threadData->cpyDatasetStopEvent);
   // threadData->timeCpyDatasetSum += threadData->timeCpyDataset;
+  if (args != nullptr)
+    HeTM_sync_BB(); // notify CPU to proceed
   __atomic_store_n(&isDatasetSyncDone, 1, __ATOMIC_RELEASE);
   // TIMER_READ(t2);
   // printf("GPU wait dataset=%fus\n", TIMER_DIFF_SECONDS(t1, t2) * 1e6);

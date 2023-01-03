@@ -69,8 +69,7 @@ stm_log_read_entry(long* pos)
 #ifdef HETM_INSTRUMENT_CPU
   long posBmap = BMAP_CONVERT_ADDR(stm_baseMemPool[0], pos, 2);
   long posBmap_cache = BMAP_CONVERT_ADDR(stm_baseMemPool[0], pos, CACHE_GRANULE_BITS+2);
-  // printf("READ_LOG pos %li cache pos %li\n",
-  //   posBmap, posBmap_cache);
+  // printf("READ_LOG pos %li cache pos %li (pos=%p)\n", posBmap, posBmap_cache, pos);
   SET_POS_CPU(posBmap, stm_rsetCPU, *hetm_batchCount);
   SET_POS_CPU(posBmap_cache, stm_rsetCPUCache, *hetm_batchCount);
 #endif

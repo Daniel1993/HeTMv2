@@ -9,7 +9,7 @@ fi
 
 CURR_FOLDER=$(pwd)
 TARGET_FOLDER=~/Documents/Data/HeTM2/ex1_instCost
-REMOTE_FOLDER=/home/dcastro/projs/HeTM_V0/experiments/ex1_instCost/data
+REMOTE_FOLDER=/home/dcastro/projs/HeTM_V2/benches/bank/data/instrument/
 EXPERIMENT_FOLDER=$(date +%Y-%m-%dT%H_%m_%S)
 DATA_FOLDER=$TARGET_FOLDER/$EXPERIMENT_FOLDER
 

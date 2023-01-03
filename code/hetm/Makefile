@@ -1,4 +1,4 @@
-CURR_DIR      ?= ~/projs/HeTM_V1/code/hetm
+CURR_DIR      ?= ~/projs/HeTM_V2/code/hetm
 
 # CUDA_PATH     ?= /usr/local/cuda-11.0
 # CUDA_PATH     ?= /usr/local/cuda
@@ -146,6 +146,9 @@ hetm-inst-gpu.o: ./src/hetm-inst-gpu.cu $(DEPS_PR_STM_OBJS)
 
 $(DEPS_PR_STM_OBJS):
 	$(MAKE) --directory $(PR_STM_DIR)
+
+profile:
+	nsys profile -o timeline --trace cuda,nvtx,osrt,openacc ./memcd -n 1 -b 1 GPU_STEAL_PROB=0.5 CPU_STEAL_PROB=0.0 -a 5 -d 30000 -N 100 CONFL_SPACE=10 NB_CONFL_GPU_BUFFER=1 -X 0.1 -l 4 -x 32 -T 1 -S 0 -G 0 -C 0 -f file.txt -C "CPU_input_2000000_099_1310720.txt" -G "GPU_input_2000000_099_25165824.txt" CPU_BACKOFF=0 GPU_BACKOFF=0
 
 run:
 	make all

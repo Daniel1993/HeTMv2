@@ -1,6 +1,7 @@
 #ifndef BANK_H
 #define BANK_H
 
+
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
@@ -25,6 +26,11 @@
 #include "hetm-timer.h"
 #include "memman.hpp"
 #include "bitmap.hpp"
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 #ifndef PR_GRANULE_T // TODO put this somewhere else
 #define PR_GRANULE_T        int
@@ -172,9 +178,10 @@ struct thread_data {
 	bank_t *bank;
 	memcd_t *memcd;
 
-	const char *filename;
-	const char *CPUInputFile;
-	const char *GPUInputFile;
+	char filename[1024];
+	char CPUInputFile[1024];
+	char GPUInputFile[1024];
+	char fn[1024];
 	unsigned long reads, writes, updates, aborts;
 	int GPUthreadNum;
 	int nb_read_intensive;
@@ -187,7 +194,6 @@ struct thread_data {
 	unsigned long nb_transfer_gpu_only;
 	unsigned long nb_read_all;
 	unsigned long nb_write_all;
-	const char *fn;
 
 	/* #ifndef TM_COMPILER */
 	// statistics
@@ -270,6 +276,7 @@ struct thread_data {
 	// TODO: memcached GPU (in the future create two benchmarks without duplicating every thing)
 	float set_percent;
 	int shared_percent;
+	int num_sets;
 	int num_ways;
 
 	int NB_CONFL_GPU_BUFFER;
@@ -303,10 +310,6 @@ enum { // state of a memcd cache entry
 
 // functions
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 void bank_parseArgs(int argc, char **argv, thread_data_t *data);
 void bank_check_params(thread_data_t *data);
 void bank_printStats(thread_data_t *data);
@@ -324,15 +327,11 @@ int compare_double (const void *a, const void *b);
 
 int bank_sum(bank_t *bank);
 
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
-
 /* ################################################################### *
  * Granule pool bounds
  * ################################################################### */
 
-#define INTERVAL_GAP 0/*nb of granules*/
+#define INTERVAL_GAP (1<<CACHE_GRANULE_BITS)/*nb of granules*/
 
 //   Memory access layout
 // +------------------+--------------+
@@ -455,7 +454,11 @@ int bank_sum(bank_t *bank);
 })
 
 void call_cuda_check_memcd(PR_GRANULE_T* keys, size_t size);
-void call_cuda_check_keys_memcd(PR_GRANULE_T* gpuMempool, size_t sizePool,
+void call_cuda_check_keys_memcd(PR_GRANULE_T* gpu_mempool, size_t sizePool,
   int *inputKeys, int *outputFound, size_t sizeInput);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* BANK_H */

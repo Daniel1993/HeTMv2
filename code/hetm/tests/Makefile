@@ -1,5 +1,5 @@
 ### CONFIG
-CURR_DIR      ?= ~/projs/HeTM_V1/code/hetm/tests
+CURR_DIR      ?= ~/projs/HeTM_V2/code/hetm/tests
 HETM_ROOT     ?= $(CURR_DIR)/..
 CUDA_UTIL_DIR ?= $(HETM_ROOT)/../../deps/cuda-utils
 PR_STM_DIR    ?= $(HETM_ROOT)/../../deps/pr-stm

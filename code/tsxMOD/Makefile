@@ -1,4 +1,4 @@
-CURR_DIR      ?= ~/projs/HeTM_V1/code/tsxMOD
+CURR_DIR      ?= ~/projs/HeTM_V2/code/tsxMOD
 HETM_ROOT     ?= $(CURR_DIR)/../hetm
 
 CUDA_UTIL_DIR ?= $(CURR_DIR)/../../deps/cuda-utils

@@ -23,24 +23,29 @@ static void run_memcdReadTx(knlman_callback_params_s params);
 static void run_memcdWriteTx(knlman_callback_params_s params);
 static void run_finalTxLog2(knlman_callback_params_s params);
 
-int HeTM_setup_memcdWriteTx(int nbBlocks, int nbThreads)
+int HeTM_setup_memcdWriteTx(int nbBlocks, int nbThreads, int ways, int sets)
 {
   PR_global_data_s *d;
+
   for (int j = 0; j < Config::GetInstance()->NbGPUs(); j++)
   {
     MemObjBuilder b;
+    MemObj *m;
     Config::GetInstance()->SelDev(j);
     PR_curr_dev = j;
     d = &(PR_global[PR_curr_dev]);
     d->PR_blockNum = nbBlocks;
     d->PR_threadNum = nbThreads;
-    HeTM_memcdTx_input.AddMemObj(new MemObj(b
+    m = new MemObj(b
       .SetOptions(0)
       ->SetSize(sizeof(HeTM_memcdTx_input_s))
       ->AllocDevPtr()
       ->AllocHostPtr(),
       j
-    ));
+    );
+    HeTM_memcdTx_input.AddMemObj(m);
+    ((HeTM_memcdTx_input_s*)(m->host))->nbWays = ways;
+    ((HeTM_memcdTx_input_s*)(m->host))->nbSets = sets;
   }
   KnlObjBuilder b;
   HeTM_memcdWriteTx = new KnlObj(b
@@ -49,7 +54,7 @@ int HeTM_setup_memcdWriteTx(int nbBlocks, int nbThreads)
   return 0;
 }
 
-int HeTM_setup_memcdReadTx(int nbBlocks, int nbThreads)
+int HeTM_setup_memcdReadTx(int nbBlocks, int nbThreads, int ways, int sets)
 {
   PR_global_data_s *d;
   for (int j = 0; j < HETM_NB_DEVICES; j++) {
@@ -127,12 +132,16 @@ static void run_finalTxLog2(knlman_callback_params_s params)
 
 static void run_memcdReadTx(knlman_callback_params_s params)
 {
-  HeTM_bankTx_s *data = (HeTM_bankTx_s*)params.entryObj; // TODO
-  account_t *a = data->knlArgs.a;
-  account_t *accounts = a;
-  cuda_t *d = data->knlArgs.d;
+  HeTM_memcdTx_input_s *data = (HeTM_memcdTx_input_s*)(HeTM_memcdTx_input.GetMemObj(params.devId)->host); // TODO
+  // cuda_t *d = data->knlArgs.d;
+  int nbSets, nbWays;
   pr_buffer_s inBuf, outBuf;
   HeTM_memcdTx_input_s *input, *inputDev;
+  nbSets = parsedData.num_sets;
+  nbWays = parsedData.num_ways;
+  size_t cacheSize = nbSets*nbWays;
+
+  assert(nbWays > 0);
 
   // thread_local static unsigned short seed = 1234;
 
@@ -141,107 +150,107 @@ static void run_memcdReadTx(knlman_callback_params_s params)
     Config::GetInstance()->SelDev(j);
     PR_curr_dev = j;
 
-    CUDA_CHECK_ERROR(cudaDeviceSynchronize(), ""); // sync the previous run
-
     // memman_ad_hoc_free(NULL); // empties the previous parameters
-    cudaFuncSetCacheConfig(memcdReadTx, cudaFuncCachePreferL1);
+    // cudaFuncSetCacheConfig(memcdReadTx, cudaFuncCachePreferL1);
 
-    if (a == NULL) {
-      // This seems to swap the buffers if given a NULL array...
-      accounts = d->dev_a;
-      d->dev_a = d->dev_b;
-      d->dev_b = accounts;
-    }
+    memman::MemObj *m_input = HeTM_memcdTx_input.GetMemObj(j);
+    input = (HeTM_memcdTx_input_s*)m_input->host;
+    inputDev = (HeTM_memcdTx_input_s*)m_input->dev;
 
-    input = (HeTM_memcdTx_input_s*)HeTM_memcdTx_input.GetMemObj(j)->host;
-    inputDev = (HeTM_memcdTx_input_s*)HeTM_memcdTx_input.GetMemObj(j)->dev;
-
-    input->key      = d->dev_a;
+    input->key        = (int*)HeTM_mempool.GetMemObj(j)->dev;
     // TODO: /sizeof(...)
-    input->extraKey = input->key + (d->memcd_nbSets*d->memcd_nbWays);
-    input->val      = input->extraKey + 3*(d->memcd_nbSets*d->memcd_nbWays);
-    input->extraVal = input->val + (d->memcd_nbSets*d->memcd_nbWays);
-    input->ts_CPU   = input->extraVal + 7*(d->memcd_nbSets*d->memcd_nbWays);
-    input->ts_GPU   = input->ts_CPU + (d->memcd_nbSets*d->memcd_nbWays);
-    input->state    = input->ts_GPU + (d->memcd_nbSets*d->memcd_nbWays);
-    input->setUsage = input->state + (d->memcd_nbSets*d->memcd_nbWays);
-    input->nbSets   = d->num_sets;
-    input->nbWays   = d->num_ways;
+    input->extraKey   = input->key + cacheSize;
+    input->val        = input->extraKey + 3*cacheSize;
+    input->extraVal   = input->val + cacheSize;
+    input->ts_CPU     = input->extraVal + 7*cacheSize;
+    input->ts_GPU     = input->ts_CPU + cacheSize;
+    input->state      = input->ts_GPU + cacheSize;
+    input->setUsage   = input->state + cacheSize;
+    input->nbSets     = nbSets;
+    input->nbWays     = nbWays;
     input->input_keys = GPUInputBuffer[j];
     input->input_vals = GPUInputBuffer[j];
     input->output     = (memcd_get_output_t*)GPUoutputBuffer[j];
 
     input->curr_clock = (int*)memcd_global_ts.GetMemObj(j)->dev;
-
-    HeTM_memcdTx_input.GetMemObj(j)->CpyHtD(HeTM_memStream2[j]);
+    m_input->CpyHtD(HeTM_memStream2[j]);
 
     // TODO:
     // inputDev = (HeTM_memcdTx_input_s*)memman_ad_hoc_alloc(NULL, &input, sizeof(HeTM_memcdTx_input_s));
     // memman_ad_hoc_cpy(NULL);
 
+    PR_curr_dev = j;
+    // printf("memcdReadTx\n");
     // TODO: change PR-STM to use knlman
-    // PR_blockNum = params.blocks.x;
-    // PR_threadNum = params.threads.x;
     inBuf.buf = (void*)inputDev;
     inBuf.size = sizeof(HeTM_memcdTx_input_s);
     outBuf.buf = NULL;
     outBuf.size = 0;
     pr_tx_args_s *pr_args = getPrSTMmetaData(j);
     PR_prepareIO(pr_args, inBuf, outBuf);
+    // CUDA_CHECK_ERROR(cudaDeviceSynchronize(), ""); // sync the previous run
     PR_run(memcdReadTx, pr_args);
+  }
+  for (int j = 0; j < HETM_NB_DEVICES; ++j)
+  {
+    Config::GetInstance()->SelDev(j);
+    CUDA_CHECK_ERROR(cudaDeviceSynchronize(), "");
   }
 }
 
 static void run_memcdWriteTx(knlman_callback_params_s params)
 {
-  HeTM_bankTx_s *data = (HeTM_bankTx_s*)params.entryObj;
-  account_t *a = data->knlArgs.a;
-  account_t *accounts = a;
-  cuda_t *d = data->knlArgs.d;
+  HeTM_memcdTx_input_s *data = (HeTM_memcdTx_input_s*)(HeTM_memcdTx_input.GetMemObj(params.devId)->host); // TODO
+  int nbSets, nbWays;
   pr_buffer_s inBuf, outBuf;
   HeTM_memcdTx_input_s *input, *inputDev;
+  nbSets = data->nbSets;
+  nbWays = data->nbWays;
+  size_t cacheSize = nbSets*nbWays;
+
+  assert(nbWays > 0);
 
   for (int j = 0; j < HETM_NB_DEVICES; ++j)
   {
-    cudaFuncSetCacheConfig(memcdWriteTx, cudaFuncCachePreferL1);
+    // cudaFuncSetCacheConfig(memcdWriteTx, cudaFuncCachePreferL1);
 
-    if (a == NULL) {
-      // This seems to swap the buffers if given a NULL array...
-      accounts = d->dev_a;
-      d->dev_a = d->dev_b;
-      d->dev_b = accounts;
-    }
+    memman::MemObj *m_input = HeTM_memcdTx_input.GetMemObj(j);
+    input = (HeTM_memcdTx_input_s*)m_input->host;
+    inputDev = (HeTM_memcdTx_input_s*)m_input->dev;
 
-    input = (HeTM_memcdTx_input_s*)HeTM_memcdTx_input.GetMemObj(j)->host;
-    inputDev = (HeTM_memcdTx_input_s*)HeTM_memcdTx_input.GetMemObj(j)->dev;
-
-    input->key   = d->dev_a;
-    input->extraKey = input->key + (d->memcd_nbSets*d->memcd_nbWays);
-    input->val      = input->extraKey + 3*(d->memcd_nbSets*d->memcd_nbWays);
-    input->extraVal = input->val + (d->memcd_nbSets*d->memcd_nbWays);
-    input->ts_CPU   = input->extraVal + 7*(d->memcd_nbSets*d->memcd_nbWays);
-    input->ts_GPU   = input->ts_CPU + (d->memcd_nbSets*d->memcd_nbWays);
-    input->state    = input->ts_GPU + (d->memcd_nbSets*d->memcd_nbWays);
-    input->setUsage = input->state + (d->memcd_nbSets*d->memcd_nbWays);
-    input->nbSets   = d->num_sets;
-    input->nbWays   = d->num_ways;
+    input->key        = (int*)HeTM_mempool.GetMemObj(j)->dev;
+    input->extraKey   = input->key + cacheSize;
+    input->val        = input->extraKey + 3*cacheSize;
+    input->extraVal   = input->val + cacheSize;
+    input->ts_CPU     = input->extraVal + 7*cacheSize;
+    input->ts_GPU     = input->ts_CPU + cacheSize;
+    input->state      = input->ts_GPU + cacheSize;
+    input->setUsage   = input->state + cacheSize;
+    input->nbSets     = nbSets;
+    input->nbWays     = nbWays;
     input->input_keys = GPUInputBuffer[j];
     input->input_vals = GPUInputBuffer[j];
     input->output     = (memcd_get_output_t*)GPUoutputBuffer[j];
 
-
     input->curr_clock = (int*)memcd_global_ts.GetMemObj(j)->dev;
-    HeTM_memcdTx_input.GetMemObj(j)->CpyHtD(HeTM_memStream2[j]);
+    m_input->CpyHtD(HeTM_memStream2[j]);
 
     // TODO: change PR-STM to use knlman
-    // PR_blockNum = params.blocks.x;
-    // PR_threadNum = params.threads.x;
+    PR_curr_dev = j;
+    // printf("memcdWriteTx %i\n", j);
     inBuf.buf = (void*)inputDev;
     inBuf.size = sizeof(HeTM_memcdTx_input_s);
     outBuf.buf = NULL;
     outBuf.size = 0;
     pr_tx_args_s *pr_args = getPrSTMmetaData(j);
     PR_prepareIO(pr_args, inBuf, outBuf);
+    // CUDA_CHECK_ERROR(cudaDeviceSynchronize(), "");
     PR_run(memcdWriteTx, pr_args);
+    // printf("END_memcdWriteTx %i\n", j);
+  }
+  for (int j = 0; j < HETM_NB_DEVICES; ++j)
+  {
+    Config::GetInstance()->SelDev(j);
+    CUDA_CHECK_ERROR(cudaDeviceSynchronize(), "");
   }
 }

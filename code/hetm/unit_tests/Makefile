@@ -1,5 +1,5 @@
 ### CONFIG
-CURR_DIR      ?= ~/projs/HeTM_V1/code/hetm/unit_tests
+CURR_DIR      ?= ~/projs/HeTM_V2/code/hetm/unit_tests
 
 
 TINY_ROOT     ?= ../../tinyMOD
@@ -32,6 +32,7 @@ INCLUDES := \
 	-I $(TSX_ROOT)/include \
 	-I $(CUDA_PATH)/include \
 	-I $(FVS_LIB_DIR) \
+	-I $(HTM_ARCH_DEPS)/include \
 	-I $(PR_STM_DIR)/include
 LIBS     := \
 	-L $(HETM_ROOT) -lhetm \

@@ -176,7 +176,8 @@ typedef struct HeTM_shared_
   size_t bmap_cache_wset_CPUSize, bmap_cache_wset_CPUBits;
 
   void *bmap_wset_GPU_devptr[HETM_NB_DEVICES];
-  char *mat_confl_GPU_unif;
+  char *mat_confl_GPU_devptr;
+  char *mat_confl_GPU_hostptr;
 
   // TODO: remove this is benchmark specific
   void *devCurandState; // type is curandState*
@@ -203,6 +204,7 @@ typedef struct HeTM_gshared_
   // algorithm specific
   HETM_GPU_STATE statusGPU;
   volatile int stopFlag;
+  volatile int reqStopFlag;
   volatile int stopAsyncFlag;
   barrier_t CPUBarrier;
   barrier_t nextBatchBarrier;
@@ -228,7 +230,7 @@ typedef struct HeTM_gshared_
 
   int nbOfGPUs;
   void *bmap_wset_GPU_hostptr[HETM_NB_DEVICES];
-  char *mat_confl_CPU_unif; // final merged matrix, CPU pre-fill this with its own conflicts
+  char *mat_confl_CPU_final; // final merged matrix, CPU pre-fill this with its own conflicts
   long *dev_weights;
 
   // TODO: remove this is benchmark specific
@@ -241,6 +243,9 @@ typedef struct HeTM_gshared_
   cudaEvent_t batchStartEvent, batchStopEvent;
 
   int isInterGPUConflDone;
+  int GPUisCanStartNow;
+  int GPUisNowWarm;
+  int GPUisCompleted;
 
   long batchCount;
   float timeBudget;
@@ -373,6 +378,13 @@ int HeTM_join_CPU_threads();
 //----------------------
 
 //---------------------- getters/setters
+#if defined(HETM_GPU_EN) && HETM_GPU_EN == 0
+#define HeTM_request_stop()                    (__atomic_store_n(&HeTM_gshared_data.stopFlag, 1, __ATOMIC_RELEASE))
+#define HeTM_check_request_stop()              (__atomic_load_n(&HeTM_gshared_data.stopFlag, __ATOMIC_ACQUIRE))
+#else
+#define HeTM_request_stop()                    (__atomic_store_n(&HeTM_gshared_data.reqStopFlag, 1, __ATOMIC_RELEASE))
+#define HeTM_check_request_stop()              (__atomic_load_n(&HeTM_gshared_data.reqStopFlag, __ATOMIC_ACQUIRE))
+#endif
 #define HeTM_set_is_stop(isStop)               (__atomic_store_n(&HeTM_gshared_data.stopFlag, isStop, __ATOMIC_RELEASE))
 #define HeTM_is_stop()                         (__atomic_load_n(&HeTM_gshared_data.stopFlag, __ATOMIC_ACQUIRE))
 #define HeTM_async_set_is_stop(isStop)         (__atomic_store_n(&HeTM_gshared_data.stopAsyncFlag, isStop, __ATOMIC_RELEASE))

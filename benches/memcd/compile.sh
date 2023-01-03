@@ -9,9 +9,10 @@ USE_TSX_IMPL=0
 CFG=opt
 PRINT_DEB=0
 PR_MAX_RWSET_SIZE=400
-BANK_PART=1
+BANK_PART=6
 CPU_PART=0.50
 GPU_PART=0.50
+DISABLE_EARLY_VALIDATION=0
 P_INTERSECT=0.00
 PROFILE=1
 BMAP_GRAN_BITS=13
@@ -29,9 +30,12 @@ do
 	then
 		arg=$(echo "$var" | awk '{split($0,Ip,"=")} END{print Ip[1];}')
 		val=$(echo "$var" | awk '{split($0,Ip,"=")} END{print Ip[2];}')
+		# echo "${arg}=${val}"
 		eval "${arg}=${val}"
 	fi
 done
+
+# sleep 5s
 
 if [ $1 = "debug" ]
 then
@@ -56,6 +60,7 @@ make                                                                \
 	INST_CPU=$INST_CPU                                                \
 	USE_TSX_IMPL=$USE_TSX_IMPL                                        \
 	PR_MAX_RWSET_SIZE=$PR_MAX_RWSET_SIZE                              \
+	DISABLE_EARLY_VALIDATION=$DISABLE_EARLY_VALIDATION                \
 	BANK_PART=$BANK_PART                                              \
 	GPU_PART=$GPU_PART                                                \
 	CPU_PART=$CPU_PART                                                \
@@ -72,7 +77,7 @@ make                                                                \
 	HETM_NB_DEVICES=$HETM_NB_DEVICES                                  \
 	BMAP_GRAN_BITS=$BMAP_GRAN_BITS                                    \
 	-j 14                                                             \
-	alldeps
+	alldeps >/dev/null
 	# 
 make                                                                \
 	CMP_TYPE=$CMP_TYPE                                                \
@@ -84,6 +89,7 @@ make                                                                \
 	INST_CPU=$INST_CPU                                                \
 	USE_TSX_IMPL=$USE_TSX_IMPL                                        \
 	PR_MAX_RWSET_SIZE=$PR_MAX_RWSET_SIZE                              \
+	DISABLE_EARLY_VALIDATION=$DISABLE_EARLY_VALIDATION                \
 	BANK_PART=$BANK_PART                                              \
 	GPU_PART=$GPU_PART                                                \
 	CPU_PART=$CPU_PART                                                \
@@ -99,7 +105,7 @@ make                                                                \
 	PRINT_DEB=$PRINT_DEB                                              \
 	HETM_NB_DEVICES=$HETM_NB_DEVICES                                  \
 	BMAP_GRAN_BITS=$BMAP_GRAN_BITS                                    \
-	-j 14
+	-j 14 >/dev/null
 
 echo " ----------------------------------------- "
 echo " $0 flags:                                 "
@@ -111,6 +117,7 @@ echo -e "\
 	USE_TSX_IMPL=$USE_TSX_IMPL                                        \n\
 	PR_MAX_RWSET_SIZE=$PR_MAX_RWSET_SIZE                              \n\
 	BANK_PART=$BANK_PART                                              \n\
+	DISABLE_EARLY_VALIDATION=$DISABLE_EARLY_VALIDATION                \n\
 	GPU_PART=$GPU_PART                                                \n\
 	CPU_PART=$CPU_PART                                                \n\
 	P_INTERSECT=$P_INTERSECT                                          \n\

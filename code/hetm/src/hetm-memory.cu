@@ -39,6 +39,8 @@ MemObjOnDev HeTM_cpu_rset;
 MemObjOnDev HeTM_cpu_wset;
 MemObjOnDev HeTM_cpu_rset_cache;
 MemObjOnDev HeTM_cpu_wset_cache;
+MemObjOnDev HeTM_gpu_confl_mat;
+MemObjOnDev HeTM_cpu_final_mat;
 
 #ifdef BMAP_ENC_1BIT
 MemObjOnDev HeTM_gpu_rset_swap;
@@ -54,9 +56,6 @@ MemObjOnDev HeTM_cpu_wset_cache_swap;
 MemObjOnDev *HeTM_gpu_wset_ext = nullptr;
 
 MemObjOnDev HeTM_curand_state;
-
-MemObjOnDev HeTM_gpu_confl_mat;
-MemObjOnDev HeTM_gpu_confl_mat_merge;
 
 static void init_mempool(size_t pool_size, int opts);
 static void init_RSetWSet(int devId, size_t pool_size);
@@ -110,8 +109,7 @@ int HeTM_mempool_init(size_t pool_size, int opts)
       args.devWSetCache[k]         = HeTM_shared_data[k].wsetGPUcache;
       // args.devWSet[k]              = HeTM_shared_data[j].bmap_wset_GPU_devptr[k];
       args.devWSet[k]              = HeTM_gpu_wset_ext[k].GetMemObj(j)->dev;
-      // TODO: this must go into GPU memory   
-      args.localConflMatrix[k] = (char*)(HeTM_shared_data[k].mat_confl_GPU_unif);
+      args.localConflMatrix[k] = (char*)(HeTM_shared_data[k].mat_confl_GPU_devptr);
     }
     args.hostRSet              = HeTM_shared_data[j].bmap_rset_CPU_devptr;
     args.hostRSetCache_hostptr = HeTM_shared_data[j].bmap_cache_rset_CPU_hostptr;
@@ -565,7 +563,8 @@ static void init_RSetWSet(int devId, size_t pool_size)
   m_gpu_rset = new MemObj(b_gpu_rset
     .SetSize(sizeRSetLog)
     ->SetOptions(0)
-    ->AllocDevPtr(),
+    ->AllocDevPtr()
+    ->AllocHostPtr(),
     devId);
   m_gpu_rset->ZeroDev();
   HeTM_gpu_rset.AddMemObj(m_gpu_rset);
@@ -701,21 +700,27 @@ static void init_multi_GPU(int devId, size_t pool_size)
   MemObj *m_gpu_confl_mat = new MemObj(b_gpu_confl_mat
     .SetSize(((nbOfGPUs+1) * (nbOfGPUs+1)) * sizeof(char))
     ->SetOptions(0)
-    ->AllocUnifMem(),
+    ->AllocHostPtr()
+    ->AllocDevPtr(),
     devId);
   HeTM_gpu_confl_mat.AddMemObj(m_gpu_confl_mat);
   m_gpu_confl_mat->ZeroDev();
-  HeTM_shared_data[devId].mat_confl_GPU_unif = (char*)m_gpu_confl_mat->host;
+  m_gpu_confl_mat->ZeroHost();
+  HeTM_shared_data[devId].mat_confl_GPU_devptr = (char*)m_gpu_confl_mat->dev;
+  HeTM_shared_data[devId].mat_confl_GPU_hostptr = (char*)m_gpu_confl_mat->host;
+  HeTM_gpu_confl_mat.AddMemObj(m_gpu_confl_mat);
 
   MemObjBuilder b_gpu_confl_mat_merge;
   MemObj *m_gpu_confl_mat_merge = new MemObj(b_gpu_confl_mat
     .SetSize(((nbOfGPUs+1) * (nbOfGPUs+1)) * sizeof(char))
     ->SetOptions(0)
-    ->AllocUnifMem(),
+    ->AllocHostPtr()
+    ->AllocDevPtr(),
     devId);
-  HeTM_gpu_confl_mat_merge.AddMemObj(m_gpu_confl_mat_merge);
+  HeTM_cpu_final_mat.AddMemObj(m_gpu_confl_mat_merge);
   m_gpu_confl_mat_merge->ZeroDev();
-  HeTM_gshared_data.mat_confl_CPU_unif = (char*)m_gpu_confl_mat_merge->host;
+  HeTM_gshared_data.mat_confl_CPU_final = (char*)m_gpu_confl_mat_merge->host;
+  HeTM_cpu_final_mat.AddMemObj(m_gpu_confl_mat_merge);
 
   HeTM_gshared_data.dev_weights = (long*)malloc(sizeof(long)*(nbOfGPUs+1));
   for (int i = 0; i < nbOfGPUs+1; i++)

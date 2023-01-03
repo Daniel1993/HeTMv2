@@ -233,26 +233,19 @@ static void run_memcdReadTx(knlman_callback_params_s params)
   {
     Config::GetInstance()->SelDev(j);
     PR_curr_dev = j;
-    CUDA_CHECK_ERROR(cudaDeviceSynchronize(), ""); // sync the previous run
+    // CUDA_CHECK_ERROR(cudaDeviceSynchronize(), ""); // sync the previous run
 
     // memman_ad_hoc_free(NULL); // empties the previous parameters
-    cudaFuncSetCacheConfig(memcdReadTx, cudaFuncCachePreferL1);
-
-    if (a == NULL) {
-      // This seems to swap the buffers if given a NULL array...
-      accounts = d->dev_a;
-      d->dev_a = d->dev_b;
-      d->dev_b = accounts;
-    }
+    // cudaFuncSetCacheConfig(memcdReadTx, cudaFuncCachePreferL1);
 
     MemObj *m_memcdTx_input = HeTM_memcdTx_input.GetMemObj(j);
     input = (HeTM_memcdTx_input_s*)m_memcdTx_input->host;
     inputDev = (HeTM_memcdTx_input_s*)m_memcdTx_input->dev;
 
     input->key   = d->dev_a;
-    input->val   = input->key + (d->memcd_array_size/4); // TODO: /sizeof(...)
-    input->ts    = input->val + (d->memcd_array_size/4); // TODO: /sizeof(...)
-    input->state = input->ts  + (d->memcd_array_size/4); // TODO: /sizeof(...)
+    input->val   = input->key + (d->memcd_array_size/sizeof(PR_GRANULE_T));
+    input->ts    = input->val + (d->memcd_array_size/sizeof(PR_GRANULE_T));
+    input->state = input->ts  + (d->memcd_array_size/sizeof(PR_GRANULE_T));
     input->nbSets = d->num_sets;
     input->nbWays = d->num_ways;
     input->input_keys = GPUInputBuffer[j];
@@ -307,9 +300,9 @@ static void run_memcdWriteTx(knlman_callback_params_s params)
     inputDev = (HeTM_memcdTx_input_s*)m_memcdTx_input->dev;
 
     input->key   = d->dev_a;
-    input->val   = input->key + (d->memcd_array_size/4)/sizeof(PR_GRANULE_T);
-    input->ts    = input->val + (d->memcd_array_size/4)/sizeof(PR_GRANULE_T);
-    input->state = input->ts  + (d->memcd_array_size/4)/sizeof(PR_GRANULE_T);
+    input->val   = input->key + (d->memcd_array_size/sizeof(PR_GRANULE_T));
+    input->ts    = input->val + (d->memcd_array_size/sizeof(PR_GRANULE_T));
+    input->state = input->ts  + (d->memcd_array_size/sizeof(PR_GRANULE_T));
     input->nbSets = d->num_sets;
     input->nbWays = d->num_ways;
     input->input_keys = GPUInputBuffer[j];

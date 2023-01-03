@@ -1,6 +1,6 @@
 ### TODO: create include files for pr-stm, cuda-utils, tsx and tiny
 
-CURR_DIR      ?= ~/projs/HeTM_V1/benches/memcd
+CURR_DIR      ?= ~/projs/HeTM_V2/benches/memcd
 include ../../cuda_location.mak
 
 TINY_ROOT     ?= ../../code/tinyMOD
@@ -58,15 +58,21 @@ ifeq ($(USE_TSX_IMPL),1)
 INCLUDES  += -I $(HTM_SGL)/include
 LIBS      += -L $(HTM_SGL)/bin -lhtm_sgl -L $(TSX_ROOT) -ltsxMOD
 endif
-ifneq ($(CFG),debug)
-CFLAGS   += -DNDEBUG
-CXXFLAGS += -DNDEBUG
-NVFLAGS  += -DNDEBUG
-endif
+
 CFLAGS     := -c $(DEFINES) $(INCLUDES) -std=c99
 CXXFLAGS   := -c $(DEFINES) $(INCLUDES) -std=c++11
 NVFLAGS    := -c -dc $(DEFINES) $(INCLUDES) -std=c++11 
 LDFLAGS    := $(LIBS)  -l tbb -l tbbmalloc
+
+ifneq ($(CFG),debug)
+CFLAGS   += -DNDEBUG
+CXXFLAGS += -DNDEBUG
+NVFLAGS  += -DNDEBUG
+else
+CFLAGS   += $(DEBUG_FLAGS)
+CXXFLAGS += $(DEBUG_FLAGS)
+NVFLAGS  += $(NV_DEB_FLAGS)
+endif
 
 CODE_HTM_SRC_DIR:=$(HETM_ROOT)/src
 include $(HETM_ROOT)/Makefile.sources
@@ -89,8 +95,8 @@ include $(TSX_MOD_DIR)/Makefile.sources
 TINY_MOD_DIR := $(TINY_ROOT)
 include $(TINY_MOD_DIR)/Makefile.sources
 
-BENCH_BANK_SRC_DIR := $(SRC)
-include Makefile.sources
+# BENCH_BANK_SRC_DIR := $(SRC)
+# include Makefile.sources
 
 ifeq ($(USE_TSX_IMPL),1)
 TSX_FLAGS += -DUSE_TSX_IMPL
@@ -99,25 +105,19 @@ CXXFLAGS  += $(TSX_FLAGS) -mrtm
 NVFLAGS   += $(TSX_FLAGS) --compiler-options='-mrtm'
 endif
 
-ifeq ($(CFG),debug)
-CFLAGS   += $(DEBUG_FLAGS)
-CXXFLAGS += $(DEBUG_FLAGS)
-NVFLAGS  += $(NV_DEB_FLAGS)
-endif
-
 SRC        := $(CURR_DIR)/src
 
 # $(SRC)/cmp_kernels.o
 MEMCD_OBJS  := \
+	$(SRC)/input_buffer.o \
+	$(SRC)/memcd2.o \
 	$(SRC)/kernel.o \
 	$(SRC)/cmp_kernels.o \
 	$(SRC)/bankKernel.o \
 	$(SRC)/zipf_dist.o \
-	$(SRC)/input_buffer.o \
 	$(SHARED)/src/shared.o \
 	$(SRC)/setupKernels.o \
 	$(SRC)/memcdKernel.o \
-	$(SRC)/memcd2.o \
 #
 
 OBJS := $(MEMCD_OBJS)
@@ -132,8 +132,6 @@ simple: $(OBJS) $(HETM_ROOT)/hetm-inst-cpu.o \
 		$(HETM_ROOT)/hetm-inst-gpu.o \
 		$(PR_STM_DIR)/pr-stm-obj.o
 	# does not recompile everything
-	# $(CXX) $(CXXFLAGS) -o $(SRC)/workloads/cpu_txs.o $(SRC)/workloads/cpu_txs.cpp
-	#$(CXX) $(CXXFLAGS) -O1 -o $(SRC)/memcd2.o $(SRC)/memcd2.cpp
 	$(NVCC) $(LDFLAGS) -o $(APP) 	$(HETM_ROOT)/hetm-inst-gpu.o $(HETM_ROOT)/hetm-inst-cpu.o $(OBJS)
 
 # TODO: propagate PR_MAX_RWSET_SIZE and HETM_CMP_TYPE
@@ -151,15 +149,12 @@ $(HETM_ROOT)/hetm-inst-gpu.o
 	@echo " ------ FLAGS ------ \n$(DEFINES)"
 	@echo " ------------------- \nLinking..."
 	### TODO: optimization breaks performance
-	# $(CXX) $(CXXFLAGS) -o $(SRC)/workloads/cpu_txs.o $(SRC)/workloads/cpu_txs.cpp
 	$(NVCC) $(LDFLAGS) -o $@ $(OBJS) \
 		$(HETM_ROOT)/hetm-inst-cpu.o \
 		$(HETM_ROOT)/hetm-inst-gpu.o \
 		$(PR_STM_DIR)/pr-stm-obj.o
 	@echo "Linking..."
 	### TODO: optimization breaks performance
-	#$(CXX) $(CXXFLAGS) -O1 -o $(SRC)/memcd2.o $(SRC)/memcd2.cpp
-	#$(NVCC) $(LDFLAGS) -o $@ $(OBJS)
 
 
 $(TINY_ROOT)/lib/libstm.a: $(TINY_MOD_SRCS)

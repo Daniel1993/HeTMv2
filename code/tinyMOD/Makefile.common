@@ -1,6 +1,6 @@
 # Path to root directory
 ROOT ?= .
-CURR_DIR ?= ~/projs/HeTM_V1/code/tinyMOD
+CURR_DIR ?= ~/projs/HeTM_V2/code/tinyMOD
 
 # CC, LD and AR are builtin-variables of Make (?= is useless in this case)
 # To override these defines, you must use "make CC=cc" or change it here

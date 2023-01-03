@@ -25,9 +25,9 @@ extern int nbOfGPUSetKernels;
 extern KnlObj *HeTM_memcdWriteTx;
 extern KnlObj *HeTM_memcdReadTx;
 
-void call_cuda_check_memcd(PR_GRANULE_T* gpuMempool, size_t size)
+void call_cuda_check_memcd(PR_GRANULE_T* gpu_mempool, size_t size)
 {
-  memcd_check<<<32,4>>>(gpuMempool, size);
+  memcd_check<<<32,4>>>(gpu_mempool, size);
 }
 
 // inits the remaining stuff for memcd
@@ -44,8 +44,8 @@ void jobWithCuda_initMemcd(cuda_t *cd, int ways, int sets, float wr, int sr)
   cd->num_sets = sets > 0 ? sets : NUMBER_SETS;
 
 	// CUDA_CHECK_ERROR(queue_Init(queue, cd, sr, QUEUE_SIZE, (long*)cd->devStates), "");
-  HeTM_setup_memcdReadTx(cd->blockNum, cd->threadNum);
-  HeTM_setup_memcdWriteTx(cd->blockNum, cd->threadNum);
+  HeTM_setup_memcdReadTx(cd->blockNum, cd->threadNum, ways, sets);
+  HeTM_setup_memcdWriteTx(cd->blockNum, cd->threadNum, ways, sets);
 
   // TODO: use buffer alloc API
   // CUDA_CHECK_ERROR(cudaMalloc((void **)&cd->output, cd->threadNum*cd->blockNum*sizeof(cuda_output_t)), "");
@@ -125,7 +125,7 @@ static void offloadMemcdTxThread(void *argsPtr)
   offload_memcd_tx_thread_s *args = (offload_memcd_tx_thread_s*)argsPtr;
   // thread_data_t *cd = args->thread_data;
   cuda_t *d = args->d;
-  account_t *a = args->a;
+  // account_t *a = args->a;
   static thread_local unsigned seed = 82913126;
 
   cudaError_t cudaStatus;
@@ -137,13 +137,13 @@ static void offloadMemcdTxThread(void *argsPtr)
   // int read_size;
 
   // TODO
-  HeTM_bankTx_s bankTx_args = {
-    .knlArgs = {
-      .d = d,
-      .a = a,
-    },
-    .clbkArgs = NULL
-  };
+  // HeTM_bankTx_s bankTx_args = {
+  //   .knlArgs = {
+  //     .d = d,
+  //     .a = a,
+  //   },
+  //   .clbkArgs = NULL
+  // };
 
   // decider = 100; // always GET
 

@@ -41,6 +41,7 @@ void hetm_impl_pr_clbk_before_run_ext(pr_tx_args_s *args)
 	GPU_log->hostMemPoolBasePtr     = m_mempool->host;
 	GPU_log->state                  = (long*)HeTM_shared_data[PR_curr_dev].devCurandState; /* TODO: application specific */
 	GPU_log->batchCount             = *hetm_batchCount;
+	GPU_log->sizeMemPool            = m_mempool->size;
 	// printf("Sent to GPU batch %li\n", GPU_log->batchCount);
 	GPU_log->isGPUOnly              = (HeTM_gshared_data.isCPUEnabled == 0);
 	/* ---------------------- */
@@ -60,7 +61,7 @@ void hetm_impl_pr_clbk_before_run_ext(pr_tx_args_s *args)
 	// memman_get_gpu(NULL);
 	m->CpyHtD(PR_getCurrentStream());
 	// memman_cpy_to_gpu(HeTM_memStream2[PR_curr_dev], NULL, *hetm_batchCount);
-	// CUDA_CHECK_ERROR(cudaStreamSynchronize((cudaStream_t)HeTM_memStream2[PR_curr_dev]), "");
+	// CUDA_CHECK_ERROR(cudaStreamSynchronize((cudaStream_t)PR_getCurrentStream()), "");
 }
 
 void hetm_impl_pr_clbk_after_run_ext(pr_tx_args_s *args) { }

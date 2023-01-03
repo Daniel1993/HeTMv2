@@ -1,1 +1,21 @@
-# TODO
+BENCH_MEMCD_SRCS  := \
+	$(BENCH_MEMCD_SRC_DIR)/workloads/common.cu \
+	$(BENCH_MEMCD_SRC_DIR)/workloads/bank_part1.cu \
+	$(BENCH_MEMCD_SRC_DIR)/workloads/bank_part2.cu \
+	$(BENCH_MEMCD_SRC_DIR)/workloads/bank_part3.cu \
+	$(BENCH_MEMCD_SRC_DIR)/workloads/bank_part4.cu \
+	$(BENCH_MEMCD_SRC_DIR)/workloads/bank_part5.cu \
+	$(BENCH_MEMCD_SRC_DIR)/workloads/bank_part6.cu \
+	$(BENCH_MEMCD_SRC_DIR)/workloads/bank_part7.cu \
+	$(BENCH_MEMCD_SRC_DIR)/workloads/bank_part8.cu \
+	$(BENCH_MEMCD_SRC_DIR)/workloads/bank_part9.cu \
+	$(BENCH_MEMCD_SRC_DIR)/workloads/bank_part10.cu \
+	$(BENCH_MEMCD_SRC_DIR)/workloads/cpu_txs.cpp \
+	$(BENCH_MEMCD_SRC_DIR)/src/memcd2.cpp \
+	$(BENCH_MEMCD_SRC_DIR)/bankKernel.cu \
+	$(BENCH_MEMCD_SRC_DIR)/cmp_kernels.cu \
+	$(BENCH_MEMCD_SRC_DIR)/setupKernels.cu \
+	$(BENCH_MEMCD_SRC_DIR)/zipf_dist.cpp \
+	$(BENCH_MEMCD_SRC_DIR)/kernel.cu
+
+BENCH_MEMCD_OBJS := $(addsuffix .o, $(basename $(BENCH_MEMCD_SRCS)))

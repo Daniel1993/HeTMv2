@@ -21,8 +21,8 @@
 int HeTM_bankTx_cpy_IO();
 int HeTM_teardown_bankTx();
 
-int HeTM_setup_memcdReadTx(int nbBlocks, int nbThreads);
-int HeTM_setup_memcdWriteTx(int nbBlocks, int nbThreads);
+int HeTM_setup_memcdReadTx(int nbBlocks, int nbThreads, int ways, int sets);
+int HeTM_setup_memcdWriteTx(int nbBlocks, int nbThreads, int ways, int sets);
 int HeTM_teardown_memcdReadTx();
 int HeTM_teardown_memcdWriteTx();
 

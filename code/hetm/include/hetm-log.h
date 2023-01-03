@@ -11,7 +11,7 @@
 #ifndef HETM_MAX_THREADS
 #define HETM_MAX_THREADS 128 // TODO: used somewhere else
 #endif
-#define HETM_BUFFER_MAXSIZE 128
+#define HETM_BUFFER_MAXSIZE 1024
 
 // TODO: these don't go through
 #define HETM_VERS_LOG  1

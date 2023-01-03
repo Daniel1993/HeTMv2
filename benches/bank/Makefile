@@ -1,7 +1,7 @@
 ### TODO: create include files for pr-stm, cuda-utils, tsx and tiny
 
 ### set this to point the benchmark
-CURR_DIR      ?= ~/projs/HeTM_V1/benches/bank
+CURR_DIR      ?= ~/projs/HeTM_V2/benches/bank
 
 TINY_ROOT     ?= ../../code/tinyMOD
 TSX_ROOT      ?= ../../code/tsxMOD

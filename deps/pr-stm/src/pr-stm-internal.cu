@@ -104,15 +104,15 @@ PR_HOST void PR_retrieveIO(pr_tx_args_s *args)
 	// int sizeMtx = PR_LOCK_TABLE_SIZE * sizeof(int);
 	static thread_local int *hostNbAborts;
 	static thread_local int *hostNbCommits;
-	static thread_local int last_size;
+	// static thread_local int last_size;
 	cudaStream_t stream = d->PR_streams[d->PR_currentStream];
 	
 	setDevice();
 
 	if (hostNbAborts == NULL) {
-		cudaMallocHost(&hostNbAborts, sizeArray*d->PR_streamCount);
-		cudaMallocHost(&hostNbCommits, sizeArray*d->PR_streamCount);
-		last_size = sizeArray;
+		CUDA_CHECK_ERROR(cudaMallocHost(&hostNbAborts, sizeArray*d->PR_streamCount), "");
+		CUDA_CHECK_ERROR(cudaMallocHost(&hostNbCommits, sizeArray*d->PR_streamCount), "");
+		// last_size = sizeArray;
 	}
 
 	void *devNbAborts = (int*)args->dev.nbAborts;
@@ -123,7 +123,7 @@ PR_HOST void PR_retrieveIO(pr_tx_args_s *args)
 	PR_CPY_TO_HOST_ASYNC(hostNbCommits, devNbCommits, sizeArray*d->PR_streamCount, stream);
 	d->PR_nbAborts = 0;
 	d->PR_nbCommits = 0;
-	CUDA_CHECK_ERROR(cudaStreamSynchronize(PR_getCurrentStream()), "");
+	CUDA_CHECK_ERROR(cudaStreamSynchronize(stream), "");
 	for (i = 0; i < nbThreads*d->PR_streamCount; ++i) {
 		d->PR_nbAborts += hostNbAborts[i];
 		d->PR_nbCommits += hostNbCommits[i];

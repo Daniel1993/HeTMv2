@@ -37,15 +37,64 @@ static TIMER_T t_now;
 // YP  YP  YP YP   YP Y888888P VP   V8P      Y88888P  `Y88P'   `Y88P'  88       
 // -----------------------------------------------------------------------------
 
+#ifndef DISABLE_EARLY_VALIDATION
+// static int breakDueToEarlyVal = 0;
+static int didEarlyVal = 0;
+
+// int
+// timeIsOverHalf()
+// {
+//   TIMER_READ(t_now);
+//   double diff = TIMER_DIFF_SECONDS(t_start, t_now);
+//   // if (!(diff < HeTM_gshared_data.timeBudget))
+//   //   printf("diff = %f (budget = %f)\n", diff, HeTM_gshared_data.timeBudget);
+//   return !(diff < HeTM_gshared_data.timeBudget / 2);
+// }
+
+void
+doEarlyVal(void *)
+{
+  // if (resultFromEarlyValidation())
+  // {
+  //   HeTM_stats_data.nbEarlyValAborts++;
+  //   printf("Early Validation!\n");
+  //   __atomic_store_n(&breakDueToEarlyVal, 1, __ATOMIC_RELEASE);
+  //   return;
+  // }
+  triggerEarlyValidation();
+}
+#endif
+
 void HeTM_gpu_thread()
 {
   TIMER_T t1, t2, t3;
 
   if (!HeTM_gshared_data.isGPUEnabled) return;
 
+  while (!__atomic_load_n(&HeTM_gshared_data.GPUisCanStartNow, __ATOMIC_ACQUIRE));
+  
+  int nbGPUs = Config::GetInstance()->NbGPUs();
+  for (int j = 0; j < nbGPUs; j++)
+  {
+    Config::GetInstance()->SelDev(j);
+    CUDA_CHECK_ERROR(cudaDeviceSynchronize(), "");
+  }
+
+
+  runGPUBatch();
+  waitGPUBatchEnd();
+  runGPUBatch();
+  waitGPUBatchEnd();
+
+  __atomic_store_n(&HeTM_gshared_data.GPUisNowWarm, 1, __ATOMIC_RELEASE);
+  
   enterGPU();
 
   do {
+#ifndef DISABLE_EARLY_VALIDATION
+    // __atomic_store_n(&breakDueToEarlyVal, 0,  __ATOMIC_ACQUIRE);
+    didEarlyVal = 0;
+#endif
     runGPUBeforeBatch(threadId, (void*)HeTM_thread_data[0]);
     TIMER_READ(t1);
 
@@ -56,8 +105,23 @@ void HeTM_gpu_thread()
       runGPUBatch();
       waitGPUBatchEnd();
       runGPUAfterKernel(threadId, (void*)HeTM_thread_data[0]);
+#ifndef DISABLE_EARLY_VALIDATION
+      if (/* timeIsOverHalf() &&  */!didEarlyVal)
+      {
+        RUN_ASYNC(doEarlyVal, NULL);
+        didEarlyVal = 1;
+      }
+      // if (__atomic_load_n(&breakDueToEarlyVal, __ATOMIC_ACQUIRE))
+      if (resultFromEarlyValidation())
+      {
+        // thread_local static int countEVs = 0;
+        // printf("Early Validation %i!\n", ++countEVs);
+        break;
+      }
+#endif
     } 
-    while(!timeIsOver());
+    while(!timeIsOver() && !HeTM_is_stop());
+
 
     // ------------- takes statistics
     extern int PR_enable_auto_stats;
@@ -76,6 +140,7 @@ void HeTM_gpu_thread()
     TIMER_READ(t2);
     // TODO: I'm taking GPU time in PR-STM
     double timeLastBatch = TIMER_DIFF_SECONDS(t1, t2);
+    // printf("time batch %li: %f\n", HeTM_stats_data.nbBatches, TIMER_DIFF_SECONDS(t1, t2));
     HeTM_stats_data.timePRSTM += timeLastBatch;
     // printf("GPU batch time = %fus\n", timeLastBatch * 1e6);
 
@@ -100,7 +165,7 @@ void HeTM_gpu_thread()
       HeTM_stats_data.nbBatchesSuccess, HeTM_stats_data.nbBatchesFail);
     // if (HeTM_gshared_data.isCPUEnabled)
     // { // TODO: what if there is 2 GPUs?
-    TIMER_T t_aux1, t_aux2;
+    // TIMER_T t_aux1, t_aux2;
     // TIMER_READ(t_aux1);
       mergeGPUDataset();
       // ---------------------
@@ -174,7 +239,7 @@ void enterGPU()
 
   runBeforeGPU(threadId, clbkArgs);
 
-  for (int j = 0; j < HETM_NB_DEVICES; j++) {
+  for (int j = 0; j < nbGPUs; j++) {
     HeTM_sync_barrier(j);
   }
 
@@ -195,6 +260,7 @@ int timeIsOver()
 
 void checkIsExit()
 {
+  if (HeTM_check_request_stop()) { HeTM_set_is_stop(1); }
   if (!HeTM_is_stop()) {
     for (int j = 0; j < HETM_NB_DEVICES; j++) {
       HeTM_set_GPU_status(j, HETM_BATCH_RUN);
@@ -259,5 +325,7 @@ void exitGPU()
   CHUNKED_LOG_TEARDOWN(); // deletes the freed nodes from the CPU
 
   destroyGPUPeerCpy();
+
+  __atomic_store_n(&HeTM_gshared_data.GPUisCompleted, 1, __ATOMIC_RELEASE);
 }
 

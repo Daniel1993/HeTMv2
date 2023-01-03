@@ -1,7 +1,7 @@
 CMP_APPLY       ?= 0
 DEBUG           ?= 0
-GPUEn           ?= 1
-CPUEn           ?= 1
+HETM_GPU_EN     ?= 1
+HETM_CPU_EN     ?= 1
 CPU_INV         ?= 0
 GPU_PART        ?= 0.6
 CPU_PART        ?= 0.6
@@ -22,6 +22,7 @@ DISABLE_RS      ?= 0
 DISABLE_WS      ?= 0
 REDUCED_RS ?= 0
 DISABLE_EARLY_VALIDATION ?= 0
+HETM_NB_DEVICES ?= 2
 
 REQUEST_LATENCY ?= 10.0
 REQUEST_GRANULARITY ?= 1000000
@@ -44,8 +45,8 @@ SYS_CPU_MAX_FREQ=$(shell cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_fr
 SYS_CPU_NB_CORES=$(shell cat /proc/cpuinfo | grep processor | wc -l)
 
 DEFINES += -DLOG_TYPE=$(LOG_TYPE) \
-	-DHETM_GPU_EN=$(GPUEn) \
-	-DHETM_CPU_EN=$(CPUEn) \
+	-DHETM_GPU_EN=$(HETM_GPU_EN) \
+	-DHETM_CPU_EN=$(HETM_CPU_EN) \
 	-DCPU_INV=$(CPU_INV) \
 	-DGPU_PART=$(GPU_PART) \
 	-DCPU_PART=$(CPU_PART) \
@@ -57,6 +58,7 @@ DEFINES += -DLOG_TYPE=$(LOG_TYPE) \
 	-DREQUEST_LATENCY=$(REQUEST_LATENCY) \
 	-DREQUEST_GRANULARITY=$(REQUEST_GRANULARITY) \
 	-DHETM_REDUCED_RS=$(REDUCED_RS) \
+	-DHETM_NB_DEVICES=$(HETM_NB_DEVICES) \
 	-DREQUEST_CPU=$(REQUEST_CPU) \
 	-DREQUEST_GPU=$(REQUEST_GPU) \
 	-DBMAP_GRAN_BITS=$(BMAP_GRAN_BITS)

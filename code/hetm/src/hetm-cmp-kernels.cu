@@ -15,7 +15,9 @@ __global__ void interGPUConflDetect(HeTM_knl_cmp_args_s args, char *remote_wset,
   int devId = args.devId;
   int otherDevId = args.otherDevId;
   int nbGPUs = args.nbOfGPUs;
+#ifndef BMAP_ENC_1BIT
   int batchCount = args.batchCount;
+#endif /* BMAP_ENC_1BIT */
 
   // if (threadIdx.x == 0)
   //   printf("devId=%d otherDevId=%i id=%lu\n", devId, otherDevId, id);
@@ -44,7 +46,8 @@ __global__ void interGPUConflDetect(HeTM_knl_cmp_args_s args, char *remote_wset,
   {
     // int CPUid = nbGPUs; // CPU has the last ID
     int coord_l = (nbGPUs+1)*devId + otherDevId;
-    // printf("[GPU%i] conflict with GPU%i at pos %i (my_rset=%p, remote_wset=%p)\n", devId, otherDevId, id, my_rset, remote_wset);
+    // if (devId == 3)
+    //   printf("[GPU%i] conflict with GPU%i at pos %i (my_rset=%p, remote_wset=%p)\n", devId, otherDevId, id, my_rset, remote_wset);
     confl_mat[coord_l] = 1;
   }
 }
@@ -61,7 +64,9 @@ __global__ void CPUGPUConflDetect(HeTM_knl_cmp_args_s args, size_t offset)
   int devId = args.devId;
   int otherDevId = args.otherDevId; // CPU id == args.nbOfGPUs
   int nbGPUs = args.nbOfGPUs;
+#ifndef BMAP_ENC_1BIT
   int batchCount = args.batchCount;
+#endif /* BMAP_ENC_1BIT */
   
   unsigned char *my_rset = (unsigned char*)args.knlGlobal.devRSet;
   unsigned char *cpu_wset = (unsigned char*)args.knlGlobal.hostWSet;
@@ -101,7 +106,9 @@ __global__ void CPUrsGPUwsConflDetect(HeTM_knl_cmp_args_s args, size_t offset)
   int devId = args.devId;
   int otherDevId = args.otherDevId; // CPU id == args.nbOfGPUs
   int nbGPUs = args.nbOfGPUs;
+#ifndef BMAP_ENC_1BIT
   int batchCount = args.batchCount;
+#endif /* BMAP_ENC_1BIT */
   
   unsigned char *host_rset = (unsigned char*)args.knlGlobal.hostRSet;
   unsigned char *my_wset = (unsigned char*)args.knlGlobal.devWSet[devId];
@@ -117,10 +124,6 @@ __global__ void CPUrsGPUwsConflDetect(HeTM_knl_cmp_args_s args, size_t offset)
   inCPURSet = (host_rset[id] == batchCount);
   inMyWSet = (my_wset[id] == batchCount);
 #endif /* BMAP_ENC_1BIT */
-
-  if (id == 7499999)
-    printf("host_rset = %p my_wset = %p inCPURSet == %i inMyWSet == %i\n",
-      host_rset, my_wset, inCPURSet, inMyWSet);
 
   if (inCPURSet && inMyWSet)
   {

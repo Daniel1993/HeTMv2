@@ -476,7 +476,7 @@ int main(int argc, char **argv)
 
   memset(&parsedData, 0, sizeof(thread_data_t));
 
-  PRINT_FLAGS();
+  // PRINT_FLAGS();
 
   // ##########################################
   // ### Input management
@@ -511,8 +511,12 @@ int main(int argc, char **argv)
 	malloc_or_die(CPUInputBuffer, size_of_CPU_input_buffer * 2); // good and bad
 	malloc_or_die(CPUoutputBuffer, currMaxCPUoutputBufferSize); // kinda big
 
+	printf(" >>> Preparing input ...\n");
+
 	fill_GPU_input_buffers();
 	fill_CPU_input_buffers();
+
+	printf(" >>> Input done!\n");
 	// ---------------------------------------------------------------------------
 
   HeTM_init((HeTM_init_s){
