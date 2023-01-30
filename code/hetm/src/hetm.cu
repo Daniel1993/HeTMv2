@@ -168,16 +168,16 @@ int HeTM_init(HeTM_init_s init)
     PR_curr_dev = i;
     // TODO: init here STM too
     PR_init({
-      .nbStreams = 2,
-      // .nbStreams = 1,
+      // .nbStreams = 2,
+      .nbStreams = 1,
       .lockTableSize = PR_LOCK_TABLE_SIZE
     }); // inits PR-STM mutex array
 
-    Config::GetInstance()->SelDev(i);
+    Config::GetInstance()->SelDev(i); // Selects the right GPU
 
     HeTM_memStream[i] = PR_global[PR_curr_dev].PR_streams[0];
-    HeTM_memStream2[i] = PR_global[PR_curr_dev].PR_streams[1];
-    // HeTM_memStream2[i] = PR_global[PR_curr_dev].PR_streams[0];
+    // HeTM_memStream2[i] = PR_global[PR_curr_dev].PR_streams[1];
+    HeTM_memStream2[i] = PR_global[PR_curr_dev].PR_streams[0];
 
     pr_tx_args_s *pr_args = getPrSTMmetaData(PR_curr_dev);
     PR_global[PR_curr_dev].PR_blockNum = init.nbGPUBlocks;

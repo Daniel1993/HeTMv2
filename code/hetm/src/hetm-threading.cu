@@ -14,10 +14,11 @@
 #include "hetm-producer-consumer.h"
 
 #ifndef SYS_CPU_NB_CORES
-#define SYS_CPU_NB_CORES 56
+// #define SYS_CPU_NB_CORES 56
+#define SYS_CPU_NB_CORES 96
 #endif
 
-int HeTM_run_sync = 0;
+int HeTM_run_sync = 1;
 
 // -------------------- // TODO: organize them
 // Functions
@@ -109,7 +110,8 @@ int HeTM_join_CPU_threads()
   HETM_DEB_THREADING("Joining with offload thread ...");
   RUN_ASYNC(emptyRequest, NULL);
   for (int j = 0; j < HETM_NB_DEVICES; ++j) HeTM_flush_barrier(j);
-  thread_join_or_die(HeTM_shared_data[0].asyncThread, NULL);
+  if (!HeTM_run_sync)
+    thread_join_or_die(HeTM_shared_data[0].asyncThread, NULL);
   // HeTM_async_set_is_stop(tmp);
   isCreated = 0;
   return 0;

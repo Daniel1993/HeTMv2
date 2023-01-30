@@ -40,40 +40,7 @@
  *	KERNELS
  ****************************************************************************/
 
-typedef struct HeTM_knl_bankTx_ {
-	cuda_t *d;
-  account_t *a;
-} HeTM_knl_bankTx_s;
 
-typedef struct HeTM_bankTx_ {
-	HeTM_knl_bankTx_s knlArgs;
-	stream_t *clbkArgs;
-} HeTM_bankTx_s;
-
-typedef struct HeTM_bankTx_input_ {
-	PR_GRANULE_T *accounts;
-  size_t nbAccounts;
-	int is_intersection;
-  int *input_buffer;
-  int *output_buffer;
-} HeTM_bankTx_input_s;
-
-typedef struct HeTM_memcdTx_input_ {
-	PR_GRANULE_T *key;           /* keys in global memory --> 4B */
-	PR_GRANULE_T *extraKey;      /* 3*4B */
-	PR_GRANULE_T *val;           /* values in global memory */
-	PR_GRANULE_T *extraVal;      /* 7*4B */
-	PR_GRANULE_T *ts_CPU;        /* last access TS in global memory */
-	PR_GRANULE_T *ts_GPU;        /* last access TS in global memory */
-	PR_GRANULE_T *state;         /* state in global memory */
-	PR_GRANULE_T *setUsage;      /* state in global memory */
-  int nbSets;
-  int nbWays;
-  int *curr_clock;
-  memcd_get_output_t *output;  /* only for the GET kernel */
-  int *input_keys;             /* target input keys */
-  int *input_vals;             /* only for the SET kernel */
-} HeTM_memcdTx_input_s;
 
 /*********************************
  *	bankTx()

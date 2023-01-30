@@ -252,7 +252,8 @@ typedef struct HeTM_gshared_
 
 } HeTM_gshared_s;
 
-typedef struct HeTM_statistics_ {
+typedef struct HeTM_statistics_
+{
   long nbBatches, nbBatchesSuccess, nbBatchesFail;
   long nbTxsGPU, nbCommittedTxsGPU, nbDroppedTxsGPU, nbAbortsGPU;
   long nbTxsCPU, nbCommittedTxsCPU, nbDroppedTxsCPU, nbAbortsCPU;

@@ -343,6 +343,7 @@ int HeTM_reset_CPU_state(long batchCount)
   {
 #endif
     memzero_cpu_bmap(NULL);
+    // RUN_ASYNC(memzero_cpu_bmap, NULL);
     // HeTM_async_request((HeTM_async_req_s){
     //   .args = NULL,
     //   .fn = memzero_cpu_bmap,

@@ -69,6 +69,9 @@ typedef struct HeTM_memcdTx_input_ {
   memcd_get_output_t *output;  /* only for the GET kernel */
   int *input_keys;             /* target input keys */
   int *input_vals;             /* only for the SET kernel */
+#ifdef MEMCD_STATS
+	memcd_stats_s *stats;
+#endif
 } HeTM_memcdTx_input_s;
 
 /*********************************

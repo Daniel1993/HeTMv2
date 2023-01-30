@@ -144,9 +144,9 @@ void runGPUBatch()
   int threadId = HeTM_thread_data[0]->id;
   HeTM_callback callback = HeTM_thread_data[0]->callback;
   void *clbkArgs = HeTM_thread_data[0]->args;
-  if (HeTM_get_GPU_status(0) != HETM_IS_EXIT) {
-    for (int j = 0; j < Config::GetInstance()->NbGPUs(); ++j)
-    {
+  for (int j = 0; j < Config::GetInstance()->NbGPUs(); ++j)
+  {
+    if (HeTM_get_GPU_status(j) != HETM_IS_EXIT) {
       // while (__atomic_load_n(&HeTM_gpu_has_work[j], __ATOMIC_ACQUIRE)
       //   && !HeTM_async_is_stop(0)); // previous work
 
@@ -319,6 +319,8 @@ void notifyBatchIsDone()
   int j;
   int nGPUs = Config::GetInstance()->NbGPUs();
 
+  // printf("   <<<< notifyBatchIsDone >>>> \n");
+
   TIMER_READ(cmp_ts1); 
 
   uint64_t *cpuRSet_hostptr = (uint64_t*)HeTM_cpu_rset.GetMemObj(0)->host;
@@ -402,6 +404,7 @@ void waitGPUCMPEnd(int nonBlock)
 {
   waitCPUlogValidation(nonBlock);
   syncGPUtoCPUbarrier(nonBlock);
+  // printf("   <<<< waitGPUCMPEnd >>>>\n");
 }
 
 void mergeGPUDataset()
@@ -775,12 +778,12 @@ void accumulateStatistics()
     {
       if (*p == CPUid)
       {
-        printf("committed CPU: %li ", lastRoundTXs[*p]);
+        // printf("committed CPU: %li ", lastRoundTXs[*p]);
         HeTM_stats_data.nbCommittedTxsCPU += lastRoundTXs[*p];
       }
       else // TODO: transform this stat in an array
       {
-        printf("committed GPU%i: %li ", *p, lastRoundTXs[*p]);
+        // printf("committed GPU%i: %li ", *p, lastRoundTXs[*p]);
         HeTM_stats_data.nbCommittedTxsGPU += lastRoundTXs[*p];
       }
       p++;
@@ -792,12 +795,12 @@ void accumulateStatistics()
       anyAbort = 1;
       if (*p == CPUid)
       {
-        printf("dropped CPU: %li ", lastRoundTXs[*p]);
+        // printf("dropped CPU: %li ", lastRoundTXs[*p]);
         HeTM_stats_data.nbDroppedTxsCPU += lastRoundTXs[*p];
       }
       else // TODO: transform this stat in an array
       {
-        printf("dropped GPU%i: %li ", *p, lastRoundTXs[*p]);
+        // printf("dropped GPU%i: %li ", *p, lastRoundTXs[*p]);
         HeTM_stats_data.nbDroppedTxsGPU += lastRoundTXs[*p];
       }
       p++;
@@ -807,12 +810,12 @@ void accumulateStatistics()
   {
     for (int j = 0; j < nGPUs; ++j)
     {
-      printf("committed GPU%i: %li ", j, lastRoundTXs[j]);
+      // printf("committed GPU%i: %li ", j, lastRoundTXs[j]);
       HeTM_stats_data.nbCommittedTxsGPU += lastRoundTXs[j];
     }
   }
-  printf("\n  --- tot CPU: %li ", HeTM_stats_data.nbCommittedTxsCPU);
-  printf("tot GPUs: %li \n", HeTM_stats_data.nbCommittedTxsGPU);
+  // printf("\n  --- tot CPU: %li ", HeTM_stats_data.nbCommittedTxsCPU);
+  // printf("tot GPUs: %li \n", HeTM_stats_data.nbCommittedTxsGPU);
 
   HeTM_stats_data.nbBatches++;
   if (anyAbort) {

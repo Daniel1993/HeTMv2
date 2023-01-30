@@ -25,7 +25,6 @@ void CPUbuffer_ZIPF_2();
 void GPUbuffer_ZIPF_3();
 void CPUbuffer_ZIPF_3();
 
-
 extern thread_data_t parsedData;
 extern int isInterBatch;
 extern size_t accountsSize;

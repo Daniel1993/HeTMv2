@@ -512,14 +512,14 @@ memman::MemObjCpyDtD::CpyContiguousTemplate(
 
   if (strm)
     if (aSrcId == aDstId)
-      { /* printf(" --5-- DtD ASYNC!!!\n");  */CUDA_CPY_DtD_ASYNC(d, s, size, strm); }
+      { CUDA_CPY_DtD_ASYNC(d, s, size, strm); }
     else
-      { /* printf(" --5-- PtP ASYNC!!!\n");  */CUDA_CPY_PtP_ASYNC(d, aDstId, s, aSrcId, size, NULL/* strm */); }
+      { CUDA_CPY_PtP_ASYNC(d, aDstId, s, aSrcId, size, NULL/* strm */); }
   else
     if (aSrcId == aDstId)
-      { /* printf(" --6-- DtD!!!\n");  */CUDA_CPY_DtD(d, s, size); }
+      { CUDA_CPY_DtD(d, s, size); }
     else
-      { /* printf(" --6-- PtP!!!\n");  */CUDA_CPY_PtP(d, aDstId, s, aSrcId, size); }
+      { CUDA_CPY_PtP(d, aDstId, s, aSrcId, size); }
   return size;
 }
 

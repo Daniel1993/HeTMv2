@@ -13,6 +13,7 @@ CMP_TYPE        ?= COMPRESSED
 LOG_TYPE        ?= BMAP
 PROFILE         ?= 0
 OLD_BMAP_IMPL   ?= 0
+MEMCD_STATS     ?= 0
 CPU_STEAL_ONLY_GETS ?= 0
 DISABLE_NON_BLOCKING ?= 0
 BMAP_GRAN_BITS ?= 16
@@ -70,6 +71,10 @@ endif
 
 ifeq ($(DISABLE_WS),1)
 DEFINES += -DHETM_DISABLE_WS
+endif
+
+ifeq ($(MEMCD_STATS),1)
+DEFINES += -DMEMCD_STATS
 endif
 
 ifeq ($(OLD_BMAP_IMPL),1)

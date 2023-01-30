@@ -59,7 +59,7 @@ static void setupHeTM()
 	printf("HeTM_shared_data[0].threadsInfo = %p\n", HeTM_shared_data[0].threadsInfo);
 	HeTM_choose_policy(choose_policy);
 
-	HeTM_run_sync = 1;
+	HeTM_run_sync = 0;
 	HeTM_alloc(0, (void**)&data_cpu, (void**)&data_gpu, DATA_SIZE);
 	memset(data_cpu, 0, DATA_SIZE);
 	// TODO: exitGPU, exitCPU

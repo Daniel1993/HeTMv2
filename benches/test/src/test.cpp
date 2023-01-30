@@ -140,10 +140,11 @@ static void choose_policy(int, void*) {
 
 static void test_cuda(int id, void *data)
 {
-  HeTM_async_request((HeTM_async_req_s){
-      .args = NULL,
-      .fn = LaunchTestKernel
-    });
+	RUN_ASYNC(LaunchTestKernel, NULL);
+  // HeTM_async_request((HeTM_async_req_s){
+  //     .args = NULL,
+  //     .fn = LaunchTestKernel
+  //   });
 	// TODO: check mempool
 }
 

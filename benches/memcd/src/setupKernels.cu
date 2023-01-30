@@ -46,6 +46,9 @@ int HeTM_setup_memcdWriteTx(int nbBlocks, int nbThreads, int ways, int sets)
     HeTM_memcdTx_input.AddMemObj(m);
     ((HeTM_memcdTx_input_s*)(m->host))->nbWays = ways;
     ((HeTM_memcdTx_input_s*)(m->host))->nbSets = sets;
+#ifdef MEMCD_STATS
+    // TODO: init memcd_stats_s memcd_GPU_stats
+#endif
   }
   KnlObjBuilder b;
   HeTM_memcdWriteTx = new KnlObj(b
@@ -195,6 +198,14 @@ static void run_memcdReadTx(knlman_callback_params_s params)
   {
     Config::GetInstance()->SelDev(j);
     CUDA_CHECK_ERROR(cudaDeviceSynchronize(), "");
+#ifdef MEMCD_STATS
+    memman::MemObj *m_input = HeTM_memcdTx_input.GetMemObj(j);
+    m_input->CpyDtH(HeTM_memStream2[j]);
+    memcd_GPU_stats.nb_GETs += ((HeTM_memcdTx_input_s*)m_input->host)->stats.nb_GETs;
+    memcd_GPU_stats.cache_hits_GETs += ((HeTM_memcdTx_input_s*)m_input->host)->stats.cache_hits_GETs;
+    memcd_GPU_stats.nb_SETs += ((HeTM_memcdTx_input_s*)m_input->host)->stats.nb_SETs;
+    memcd_GPU_stats.cache_hits_SETs += ((HeTM_memcdTx_input_s*)m_input->host)->stats.cache_hits_SETs;
+#endif
   }
 }
 
@@ -252,5 +263,13 @@ static void run_memcdWriteTx(knlman_callback_params_s params)
   {
     Config::GetInstance()->SelDev(j);
     CUDA_CHECK_ERROR(cudaDeviceSynchronize(), "");
+#ifdef MEMCD_STATS
+    memman::MemObj *m_input = HeTM_memcdTx_input.GetMemObj(j);
+    m_input->CpyDtH(HeTM_memStream2[j]);
+    memcd_GPU_stats.nb_GETs += ((HeTM_memcdTx_input_s*)m_input->host)->stats.nb_GETs;
+    memcd_GPU_stats.cache_hits_GETs += ((HeTM_memcdTx_input_s*)m_input->host)->stats.cache_hits_GETs;
+    memcd_GPU_stats.nb_SETs += ((HeTM_memcdTx_input_s*)m_input->host)->stats.nb_SETs;
+    memcd_GPU_stats.cache_hits_SETs += ((HeTM_memcdTx_input_s*)m_input->host)->stats.cache_hits_SETs;
+#endif
   }
 }

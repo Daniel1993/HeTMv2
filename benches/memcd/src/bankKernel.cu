@@ -477,17 +477,19 @@ void memcdReadTx(PR_globalKernelArgs)
 	}
 
 	out[id].isFound = 0;
+	__syncthreads();
 
 	for (int i = 0; i < (nbWays /* + devParsedData.trans */); ++i)
 	{ // num_ways keys
 		// TODO: for some reason input_key == 0 does not work --> PR-STM loops forever
 		// int alreadyTakenClock = 0;
 		unsigned memcd_clock_val;
+		unsigned target_key_idx = targetKeyIdx*nbWays + i;
 		// int takeClockRetries = 0;
 
 		PR_txBegin();
 		
-		int input_key = input_keys[targetKeyIdx]; // input size is well defined
+		int input_key = input_keys[target_key_idx]; // input size is well defined
 
 		// int target_set = input_key % nbSets;
 		// int thread_pos = target_set*nbWays + wayId;
@@ -563,15 +565,15 @@ void memcdReadTx(PR_globalKernelArgs)
 				// PR_read(&setUsage[target_set]); // "locks" the set --> only needed for SETs
 			}
 
-			out[targetKeyIdx + i].isFound = 1;
-			out[targetKeyIdx + i].value = thread_val;
-			out[targetKeyIdx + i].val2 = thread_val1;
-			out[targetKeyIdx + i].val3 = thread_val2;
-			out[targetKeyIdx + i].val4 = thread_val3;
-			out[targetKeyIdx + i].val5 = thread_val4;
-			out[targetKeyIdx + i].val6 = thread_val5;
-			out[targetKeyIdx + i].val7 = thread_val6;
-			out[targetKeyIdx + i].val8 = thread_val7;
+			out[target_key_idx].isFound = 1;
+			out[target_key_idx].value = thread_val;
+			out[target_key_idx].val2 = thread_val1;
+			out[target_key_idx].val3 = thread_val2;
+			out[target_key_idx].val4 = thread_val3;
+			out[target_key_idx].val5 = thread_val4;
+			out[target_key_idx].val6 = thread_val5;
+			out[target_key_idx].val7 = thread_val6;
+			out[target_key_idx].val8 = thread_val7;
 /*
 			// for (int j = 0; j < nbWays; ++j) {
 			// 	foundKey[threadIdx.x - wayId + j] = 1;
@@ -587,6 +589,17 @@ void memcdReadTx(PR_globalKernelArgs)
 		// 	printf("[%i] Key in pos %i not found, val = %i \n", tid, targetKeyIdx, out[targetKeyIdx].value);
 		// }
 	}
+
+#ifdef MEMCD_STATS
+	__syncthreads();
+	atomicAdd(&(input->stats.nb_GETs), 1llu);
+	if (out[tid].isFound)
+		atomicAdd(&(input->stats.cache_hits_GETs), 1llu);
+	// else
+	// {
+	// 	printf("GET [%i] not found! input_key = %6i wayId = %2i targetKeyIdx = %i\n", tid, input_keys[tid], wayId, targetKeyIdx);
+	// }
+#endif
 
 	PR_exitKernel();
 }
@@ -623,9 +636,9 @@ __global__ void memcdWriteTx(PR_globalKernelArgs)
 	// printf("Passou aqui!\n");
 
 	__shared__ int reduction_is_found[maxWarpSlices]; // TODO: use shuffle instead
-	__shared__ int reduction_is_empty[maxWarpSlices]; // TODO: use shuffle instead
-	__shared__ int reduction_empty_min_id[maxWarpSlices]; // TODO: use shuffle instead
-	__shared__ int reduction_min_ts[maxWarpSlices]; // TODO: use shuffle instead
+	__shared__ int reduction_is_empty[maxWarpSlices];
+	__shared__ int reduction_empty_min_id[maxWarpSlices];
+	__shared__ int reduction_min_ts[maxWarpSlices];
 
 	// num_ways threads will colaborate for the same input
 	// REQUIREMENT: 1 block >= num_ways
@@ -656,9 +669,9 @@ __global__ void memcdWriteTx(PR_globalKernelArgs)
 	int          *input_vals = (int*)input->input_vals;
 	int            sizeCache = nbSets*nbWays;
 
-	int thread_is_found; // TODO: use shuffle instead
-	int thread_is_empty; // TODO: use shuffle instead
-	// int thread_is_older; // TODO: use shuffle instead
+	int thread_is_found;
+	int thread_is_empty;
+	// int thread_is_older;
 	PR_GRANULE_T thread_key;
 	// PR_GRANULE_T thread_val;
 	PR_GRANULE_T thread_ts;
@@ -671,8 +684,9 @@ __global__ void memcdWriteTx(PR_globalKernelArgs)
 	int maxRetries = 0;
 
 	// TODO: write kernel is too slow
-	for (int i = 0; i < nbWays/*  + devParsedData.trans */; ++i) {
-
+	for (int i = 0; i < nbWays/*  + devParsedData.trans */; ++i)
+	{
+		unsigned target_key_idx = targetKey*nbWays + i;
 		// __syncthreads(); // TODO: check with and without this
 		// TODO
 		if (failed_to_insert[warpSliceID] && maxRetries < 64) { // TODO: blocks
@@ -685,8 +699,8 @@ __global__ void memcdWriteTx(PR_globalKernelArgs)
 			failed_to_insert[warpSliceID] = 0;
 
 		// TODO: problem with the GET
-		int input_key = input_keys[targetKey/*  + i */]; // input size is well defined
-		int input_val = input_vals[targetKey/*  + i */]; // input size is well defined
+		int input_key = input_keys[target_key_idx]; // input size is well defined
+		int input_val = input_vals[target_key_idx];
 		// int target_set = input_key % nbSets;
 		// int thread_pos = target_set*nbWays + wayId;
 
@@ -793,8 +807,8 @@ __global__ void memcdWriteTx(PR_globalKernelArgs)
 						// if (nbRetries == 8191) printf("thr%i aborted 8191 times for key%i thread_pos=%i rsetSize=%lu, wsetSize=%lu\n",
 						// 	id, input_key, thread_pos, pr_args.rset.size, pr_args.wset.size);
 			PR_txCommit();
-			out[targetKey + i].isFound = 1;
-			out[targetKey + i].value = checkKey;
+			out[target_key_idx].isFound = 1;
+			out[target_key_idx].value = checkKey;
 		}
 
 		// if(id == 0) printf("is found=%i\n", thread_is_found);
@@ -844,8 +858,8 @@ __global__ void memcdWriteTx(PR_globalKernelArgs)
 			// ----
 
 			PR_txCommit();
-			out[targetKey + i].isFound = 0;
-			out[targetKey + i].value = checkKey;
+			out[target_key_idx].isFound = 0;
+			out[target_key_idx].value = checkKey;
 		}
 
 		// not found, none empty --> evict the oldest
@@ -883,10 +897,17 @@ __global__ void memcdWriteTx(PR_globalKernelArgs)
 			// ----
 			
 			PR_txCommit();
-			out[targetKey + i].isFound = 0;
-			out[targetKey + i].value = checkKey;
+			out[target_key_idx].isFound = 0;
+			out[target_key_idx].value = checkKey;
 		}
 	}
+#ifdef MEMCD_STATS
+	atomicAdd(&(input->stats.nb_SETs), 1llu);
+	if (out[tid].isFound)
+		atomicAdd(&(input->stats.cache_hits_SETs), 1llu);
+	// else
+	// 	printf("PUT [%i] not found\n", tid);
+#endif
 
 	PR_exitKernel();
 }

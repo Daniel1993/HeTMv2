@@ -680,6 +680,11 @@ void memcdReadTx(PR_globalKernelArgs)
 		// aborted[targetKey] = 0;
 		// __syncthreads();
 	}
+#ifdef MEMCD_STATS
+	atomic_inc(&(input->stats.nb_GETs), 1llu);
+	if (out[tid].isFound)
+		atomic_inc(&(input->stats.cache_hits_GETs), 1llu);
+#endif
 
 	PR_exitKernel();
 }
@@ -756,7 +761,7 @@ __global__ void memcdWriteTx(PR_globalKernelArgs)
 
 		// TODO: problem with the GET
 		int input_key = input_keys[targetKey + i]; // input size is well defined
-		int input_val = input_vals[targetKey + i]; // input size is well defined
+		int input_val = input_vals[targetKey + i]; 
 		int target_set = input_key % nbSets;
 		int thread_pos = target_set*nbWays + wayId;
 
@@ -806,22 +811,14 @@ __global__ void memcdWriteTx(PR_globalKernelArgs)
 				// }
 
 		if (thread_is_found) {
-			// int nbRetries = 0; //TODO: on fail should repeat the search
 			PR_txBegin(); // TODO: I think this may not work
-			// if (nbRetries > 0) {
-			// 	// TODO: is ignoring the input
-			// 	// someone got it; need to find a new spot for the key
-			// 	failed_to_insert[warpSliceID] = 1;
-			// 	break;
-			// }
-			// nbRetries++;
 
 			checkKey = PR_read(&keys[thread_pos]); // read-before-write
 			// TODO: does not work
-			// if (checkKey != input_key) { // we are late
-			// 	failed_to_insert[warpSliceID] = 1;
-			// 	break;
-			// }
+			if (checkKey != input_key) { // we are late
+				failed_to_insert[warpSliceID] = 1;
+				break;
+			}
 			PR_read(&values[thread_pos]); // read-before-write
 			PR_read(&timestamps[thread_pos]); // read-before-write
 			// TODO: check if values changed: if yes abort
@@ -842,23 +839,17 @@ __global__ void memcdWriteTx(PR_globalKernelArgs)
 		//       using shared memory --> each warp compute the min then: min(ResW1, ResW2)
 		//       ResW1 and ResW2 are shared
 		// was it found?
-		if (!warp_is_found && thread_is_empty && empty_min_id == id) {
+		if (!warp_is_found && thread_is_empty && empty_min_id == id)
+		{
 			// the low id thread must be the one that writes
-			// int nbRetries = 0;  //TODO: on fail should repeat the search
-			PR_txBegin(); // TODO: I think this may not work
-			// if (nbRetries > 0) {
-			// 	// someone got it; need to find a new spot for the key
-			// 	failed_to_insert[warpSliceID] = 1;
-			// 	break;
-			// }
-			// nbRetries++;
+			PR_txBegin();
 
 			checkKey = PR_read(&keys[thread_pos]); // read-before-write
 			// TODO: does not work
-			// if (checkKey != input_key) { // we are late
-			// 	failed_to_insert[warpSliceID] = 1;
-			// 	break;
-			// }
+			if (checkKey != input_key) { // we are late
+				failed_to_insert[warpSliceID] = 1;
+				break;
+			}
 			PR_read(&values[thread_pos]); // read-before-write
 			PR_read(&timestamps[thread_pos]); // read-before-write
 			PR_read(&state[thread_pos]); // read-before-write
@@ -903,6 +894,12 @@ __global__ void memcdWriteTx(PR_globalKernelArgs)
 			out[targetKey + i].value = checkKey;
 		}
 	}
+
+#ifdef MEMCD_STATS
+	atomic_inc(&(input->stats.nb_SETs), 1llu);
+	if (out[tid].isFound)
+		atomic_inc(&(input->stats.cache_hits_SETs), 1llu);
+#endif
 
 	PR_exitKernel();
 }

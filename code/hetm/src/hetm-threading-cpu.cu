@@ -193,9 +193,7 @@ void pollIsRoundComplete(int nonBlock)
 {
   int nbDoneGPUs = 0;
   for (int j = 0; j < HETM_NB_DEVICES; ++j) { 
-    if (HETM_BATCH_DONE == HeTM_get_GPU_status(j)) {
-      nbDoneGPUs++;
-    }
+    if (HETM_BATCH_DONE == HeTM_get_GPU_status(j)) { nbDoneGPUs++; }
   }
   if (nbDoneGPUs == HETM_NB_DEVICES) {
     cpyCPUwrtsetToGPU(nonBlock);

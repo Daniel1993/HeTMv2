@@ -175,8 +175,8 @@ PR_i_afterStats(cudaStream_t stream, cudaError_t status, void *data)
 	d->PR_nbAbortsSinceCheckpoint  += d->PR_nbAbortsLastKernel;
 
 	// printf(
-	// 	"[dev%i,curStrm=%lu] PR_i_afterStats: \nPR_nbCommitsSinceCheckpoint=%li PR_nbCommitsLastKernel=%li PR_sumNbCommits=%li\n",
-	// 	devId, curStream, d->PR_nbCommitsSinceCheckpoint, d->PR_nbCommitsLastKernel, *d->PR_sumNbCommits
+	// 	"[dev%i,curStrm=%i] PR_i_afterStats: \nPR_nbCommitsSinceCheckpoint=%lli PR_nbCommitsLastKernel=%lli PR_nbAbortsLastKernel=%lli PR_nbAbortsSinceCheckpoint=%lli\n",
+	// 	devId, curStream, d->PR_nbCommitsSinceCheckpoint, d->PR_nbCommitsLastKernel, d->PR_nbAbortsLastKernel, d->PR_nbAbortsSinceCheckpoint
 	// );
 
 	d->PR_nbCommitsStrm[curStream] = *d->PR_sumNbCommits;

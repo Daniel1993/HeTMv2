@@ -69,10 +69,11 @@ int jobWithCuda_runMemcd(void *thread_data, cuda_t *d, account_t *a, int clock) 
     offload_thread_args.d = d;
     offload_thread_args.a = a;
 
-    HeTM_async_request((HeTM_async_req_s){
-      .args = (void*)&offload_thread_args,
-      .fn = offloadMemcdTxThread
-    });
+    RUN_ASYNC(offloadMemcdTxThread, &offload_thread_args);
+    // HeTM_async_request((HeTM_async_req_s){
+    //   .args = (void*)&offload_thread_args,
+    //   .fn = offloadMemcdTxThread
+    // });
 
     //Check for errors
     cudaStatus = cudaGetLastError();
@@ -102,10 +103,11 @@ int jobWithCuda_runEmptyKernel(void *thread_data, cuda_t *d, account_t *a, int c
     offload_thread_args.d = d;
     offload_thread_args.a = a;
 
-    HeTM_async_request((HeTM_async_req_s){
-      .args = (void*)&offload_thread_args,
-      .fn = offloadEmptyTxThread
-    });
+    RUN_ASYNC(offloadEmptyTxThread, &offload_thread_args);
+    // HeTM_async_request((HeTM_async_req_s){
+    //   .args = (void*)&offload_thread_args,
+    //   .fn = offloadEmptyTxThread
+    // });
 
     //Check for errors
     cudaStatus = cudaGetLastError();

@@ -80,7 +80,6 @@ void HeTM_gpu_thread()
     CUDA_CHECK_ERROR(cudaDeviceSynchronize(), "");
   }
 
-
   runGPUBatch();
   waitGPUBatchEnd();
   runGPUBatch();
@@ -129,6 +128,7 @@ void HeTM_gpu_thread()
     PR_enable_auto_stats = 1;
     runGPUBeforeKernel(threadId, (void*)HeTM_thread_data[0]);
     runGPUBatch();
+    // printf("   <<<< last runGPUBatch >>>> \n");
     waitGPUBatchEnd();
     runGPUAfterKernel(threadId, (void*)HeTM_thread_data[0]);
     PR_enable_auto_stats = 0;

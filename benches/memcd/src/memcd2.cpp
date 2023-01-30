@@ -12,21 +12,15 @@
 #include "CheckAllFlags.h"
 #include "zipf_dist.hpp"
 
-#include "memcd.h"
 #include "memman.hpp"
+#include "memcd.h"
 
 using namespace memman;
 
 /* ################################################################### *
 * GLOBALS
 * ################################################################### */
-
-// global
-// thread_data_t parsedData;
-
-// static std::random_device randDev{};
 static std::mt19937 generator;
-// static zipf_distribution<int, double> *zipf_dist = NULL;
 
 static int probStealBatch = 0;
 static int isCPUBatchSteal = 0;
@@ -34,13 +28,10 @@ static int isGPUBatchSteal = 0;
 
 static unsigned memcached_global_clock = 0;
 
-// size_t size_of_CPU_input_buffer;
-// size_t size_of_GPU_input_buffer;
-// size_t maxGPUoutputBufferSize;
-// size_t currMaxCPUoutputBufferSize;
-// size_t accountsSize; // TODO: these are probably local variables
-// size_t sizePool;
-// void *gpuMempool;
+#ifdef MEMCD_STATS
+memcd_stats_s memcd_GPU_stats;
+#endif
+
 
 int nbOfGPUSetKernels = 0; // called extern in memcdKernel.cu
 int *GPUoutputBuffer[HETM_NB_DEVICES]; // called extern in input_buffer.c
@@ -229,6 +220,7 @@ memcd_get_output_t cpu_GET_kernel(memcd_t *memcd, int *input_key, unsigned input
 
   /* Allow overdrafts */
   TM_START(z, RW);
+	response.isFound = 0;
 
 	// 3) find in set the key, if not found write not found in the output
 	for (int i = 0; i < memcd->nbWays; ++i)
@@ -242,6 +234,7 @@ memcd_get_output_t cpu_GET_kernel(memcd_t *memcd, int *input_key, unsigned input
 		if ((readState & MEMCD_VALID) && readKey == key && readKey1 == key
 				&& readKey2 == key && readKey3 == key) {
 			// found it!
+			
 			int readVal = TM_LOAD(&memcd->val[newIdx]);
 			int readVal1 = TM_LOAD(&memcd->extraVal[newIdx]);
 			int readVal2 = TM_LOAD(&memcd->extraVal[newIdx+sizeCache]);
@@ -256,15 +249,18 @@ memcd_get_output_t cpu_GET_kernel(memcd_t *memcd, int *input_key, unsigned input
 			int ts_GPU = TM_LOAD(ptr_ts_GPU);
 			TM_STORE(ptr_ts, max(ts, ts_GPU)+1);
 			// *ptr_ts = input_clock; // Done non-transactionally
-			response.isFound = 1;
-			response.value   = readVal|readVal1|readVal2|readVal3|readVal4|readVal5|readVal6|readVal7;
+			response.isFound = 1; // cannot access data that is not in the STMR using this API
+			response.value = readVal|readVal1|readVal2|readVal3|readVal4|readVal5|readVal6|readVal7;
 			break;
 		}
 	}
 	TM_COMMIT;
 
-	// if (! response.isFound )
-	// printf("CPU key %i\n", key);
+#ifdef MEMCD_STATS
+	__atomic_add_fetch(&(memcd->stats.nb_GETs), 1, __ATOMIC_ACQ_REL);
+	if ( response.isFound )
+		__atomic_add_fetch(&(memcd->stats.cache_hits_GETs), 1, __ATOMIC_ACQ_REL);
+#endif
 
   return response;
 }
@@ -280,6 +276,10 @@ void cpu_SET_kernel(memcd_t *memcd, int *input_key, int *input_value, unsigned i
 	volatile int key = *input_key;
 	volatile int val = *input_value;
 	int sizeCache = memcd->nbSets*memcd->nbWays;
+	int idxFound;
+	int idxEvict;
+	int isInCache;
+	unsigned TS;
 
 	// 1) hash key
 	// modHash = (key>>4) % memcd->nbSets;
@@ -331,10 +331,10 @@ void cpu_SET_kernel(memcd_t *memcd, int *input_key, int *input_value, unsigned i
   TM_START(z, RW);
 
 	// 3) find in set the key, if not found write not found in the output
-	int idxFound = -1;
-	int idxEvict = -1;
-	int isInCache = 0;
-	unsigned TS   = (unsigned)-1; // largest TS
+	idxFound  = -1;
+	idxEvict  = -1;
+	isInCache = 0;
+	TS        = (unsigned)-1; // largest TS
 	for (int i = 0; i < memcd->nbWays; ++i)
 	{
 		size_t newIdx = setIdx + i;
@@ -413,6 +413,12 @@ void cpu_SET_kernel(memcd_t *memcd, int *input_key, int *input_value, unsigned i
 		TM_STORE(ptr_state, newState); // *ptr_state = newState;
 	}
 	TM_COMMIT;
+
+#ifdef MEMCD_STATS
+	__atomic_add_fetch(&(memcd->stats.nb_SETs), 1, __ATOMIC_ACQ_REL);
+	if ( isInCache )
+		__atomic_add_fetch(&(memcd->stats.cache_hits_SETs), 1, __ATOMIC_ACQ_REL);
+#endif
 
 	// printf("wrote %4i %p (ts %p state %p)\n", modHash, &memcd->setUsage[modHash], &memcd->ts[0], &memcd->state[0]);
 }
@@ -852,6 +858,7 @@ static void afterGPU(int id, void *data)
     HeTM_stats_data.nbBatches, HeTM_stats_data.nbBatchesSuccess, HeTM_stats_data.timeGPU);
 }
 
+
 /* ################################################################### *
 *
 * MAIN
@@ -1024,6 +1031,9 @@ int main(int argc, char **argv)
 		memcd[j].nbSets = nbSets;
 		memcd[j].nbWays = nbWays;
 		memcd[j].globalTs = (unsigned*)memcd_global_ts.GetMemObj(j)->host; // TODO: multiGPU
+#ifdef MEMCD_STATS
+		memset(&(memcd[j].stats), 0, sizeof(memcd_stats_s));
+#endif
 	}
 
 	// input manager will handle these
@@ -1109,14 +1119,10 @@ int main(int argc, char **argv)
 	// }
 
 	for (int j = 0; j < nbGPUs; ++j)
-	{
+	{ // copies the populated cache to GPU
 		Config::GetInstance()->SelDev(j);
 		CUDA_CPY_TO_DEV(gpuMempool[j], memcd[j].key, sizePool);
 	}
-	// printf(" >>>>>>>>>>>>>>> PASSOU AQUI!!!\n");
-	// call_cuda_check_memcd((int*)gpuMempool, accountsSize/sizeof(int));
-	// TODO: does not work: need to set the bitmap in order to copy
-	// HeTM_mempool_cpy_to_gpu(NULL); // copies the populated cache to GPU
 
   TM_INIT(parsedData.nb_threads);
   // ###########################################################################
@@ -1208,20 +1214,9 @@ int main(int argc, char **argv)
 
 	// call_cuda_check_memcd((int*)gpuMempool, accountsSize/sizeof(int));
 
-  /* Cleanup STM */
-  TM_EXIT();
-  /*Cleanup GPU*/
-  jobWithCuda_exit(cuda_st);
-  free(cuda_st);
   // ### End iterations ########################################################
 
   bank_statsFile(&parsedData);
-
-  /* Delete bank and accounts */
-  free(memcd);
-
-  free(threads);
-  free(data);
 
 	printf("CPU_start=%9li CPU_end=%9li\n", startInputPtr[CPU_QUEUE], endInputPtr[CPU_QUEUE]);
 	printf("GPU_start=%9li GPU_end=%9li\n", startInputPtr[GPU_QUEUE], endInputPtr[GPU_QUEUE]);
@@ -1229,6 +1224,28 @@ int main(int argc, char **argv)
 	printf("nbOfGPUSetKernels=%9i\n", nbOfGPUSetKernels);
 	printf("nbGPUStealBatches=%9i\nnbCPUStealBatches=%9i\n", nbGPUStealBatches, nbCPUStealBatches);
 	printf("timeDtD = %f\n", HeTM_stats_data.timeDtD);
+#ifdef MEMCD_STATS
+	printf("CPU total GETs=%llu hits=%llu\n", memcd[0].stats.nb_GETs, memcd[0].stats.cache_hits_GETs);
+	printf("CPU total SETs=%llu hits=%llu\n", memcd[0].stats.nb_SETs, memcd[0].stats.cache_hits_SETs);
+	for (int j = 0; j < HETM_NB_DEVICES; ++j)
+	{
+		printf("GPU%i total GETs=%llu hits=%llu\n", j, memcd_GPU_stats.nb_GETs, memcd_GPU_stats.cache_hits_GETs);
+		printf("GPU%i total SETs=%llu hits=%llu\n", j, memcd_GPU_stats.nb_SETs, memcd_GPU_stats.cache_hits_SETs);
+	}
+#endif
+
+  /* Cleanup STM */
+  TM_EXIT();
+  /*Cleanup GPU*/
+  jobWithCuda_exit(cuda_st);
+  free(cuda_st);
+
+  /* Delete bank and accounts */
+  free(memcd);
+
+  free(threads);
+  free(data);
+
 	HeTM_destroy();
 
   return EXIT_SUCCESS;
